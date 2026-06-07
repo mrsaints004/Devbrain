@@ -15,26 +15,51 @@ const imagePreview = document.getElementById('image-preview');
 const previewImg = document.getElementById('preview-img');
 const removeImage = document.getElementById('remove-image');
 const micBtn = document.getElementById('mic-btn');
+const clearBtn = document.getElementById('clear-btn');
+const exportBtn = document.getElementById('export-btn');
 
 let queryCount = 0;
 let attachedImage = null; // { data: base64, mimeType: string }
 let isProcessing = false; // Lock to prevent concurrent queries
+let conversationHistory = []; // Persist conversations
+
+// === LOAD CONVERSATION FROM STORAGE ===
+function loadHistory() {
+  try {
+    const saved = localStorage.getItem('devbrain-history');
+    if (saved) {
+      conversationHistory = JSON.parse(saved);
+      for (const msg of conversationHistory) {
+        addMessageToDOM(msg.type, msg.content, msg.meta, false);
+      }
+    }
+  } catch { /* ignore */ }
+}
+
+function saveHistory() {
+  try {
+    // Keep last 50 messages to avoid storage bloat
+    const toSave = conversationHistory.slice(-50);
+    localStorage.setItem('devbrain-history', JSON.stringify(toSave));
+  } catch { /* ignore */ }
+}
 
 // === MARKDOWN RENDERING ===
 function renderMarkdown(text) {
   if (!text) return '';
-  // Simple markdown renderer for code blocks, bold, italic, headers, lists
   let html = escapeHtml(text);
 
-  // Code blocks with syntax highlighting hints
+  // Code blocks with copy button
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    return `<pre class="code-block" data-lang="${lang}"><code>${code.trim()}</code></pre>`;
+    const id = 'code-' + Math.random().toString(36).slice(2, 8);
+    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-lang">${lang || 'code'}</span><button class="copy-btn" onclick="copyCode('${id}')">Copy</button></div><pre class="code-block" id="${id}"><code>${code.trim()}</code></pre></div>`;
   });
 
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
 
   // Headers
+  html = html.replace(/^#### (.+)$/gm, '<h5>$1</h5>');
   html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
   html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
   html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
@@ -43,13 +68,80 @@ function renderMarkdown(text) {
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
-  // Lists
-  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
-  html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+  // Horizontal rule
+  html = html.replace(/^---$/gm, '<hr>');
 
-  // Line breaks
+  // Tables
+  html = renderTables(html);
+
+  // Numbered lists
+  html = html.replace(/^(\d+)\.\s+(.+)$/gm, '<li class="ol-item" value="$1">$2</li>');
+  html = html.replace(/((<li class="ol-item"[^>]*>.*<\/li>\s*)+)/g, '<ol>$1</ol>');
+
+  // Unordered lists
+  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/((<li>.*<\/li>\s*)+)/g, (match) => {
+    if (match.includes('class="ol-item"')) return match;
+    return `<ul>${match}</ul>`;
+  });
+
+  // Line breaks (but not inside pre/table)
   html = html.replace(/\n/g, '<br>');
 
+  return html;
+}
+
+function renderTables(html) {
+  const lines = html.split('\n');
+  let result = [];
+  let inTable = false;
+  let tableRows = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('|') && line.endsWith('|')) {
+      // Check if separator row
+      if (/^\|[\s\-:|]+\|$/.test(line)) {
+        // Skip separator row
+        continue;
+      }
+      const cells = line.split('|').slice(1, -1).map(c => c.trim());
+      if (!inTable) {
+        inTable = true;
+        tableRows = [];
+      }
+      tableRows.push(cells);
+    } else {
+      if (inTable) {
+        result.push(buildTable(tableRows));
+        inTable = false;
+        tableRows = [];
+      }
+      result.push(lines[i]);
+    }
+  }
+  if (inTable) {
+    result.push(buildTable(tableRows));
+  }
+  return result.join('\n');
+}
+
+function buildTable(rows) {
+  if (rows.length === 0) return '';
+  let html = '<table class="md-table"><thead><tr>';
+  // First row is header
+  for (const cell of rows[0]) {
+    html += `<th>${cell}</th>`;
+  }
+  html += '</tr></thead><tbody>';
+  for (let i = 1; i < rows.length; i++) {
+    html += '<tr>';
+    for (const cell of rows[i]) {
+      html += `<td>${cell}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
   return html;
 }
 
@@ -59,12 +151,27 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function copyCode(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const text = el.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = el.parentElement.querySelector('.copy-btn');
+    if (btn) {
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+    }
+  });
+}
+// Make copyCode available globally
+window.copyCode = copyCode;
+
 function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
 // === MESSAGE RENDERING ===
-function addMessage(type, content, meta = null) {
+function addMessageToDOM(type, content, meta = null, save = true) {
   const div = document.createElement('div');
   div.className = `message ${type}`;
 
@@ -103,7 +210,18 @@ function addMessage(type, content, meta = null) {
   div.innerHTML = html;
   messagesEl.appendChild(div);
   scrollToBottom();
+
+  // Save to history
+  if (save) {
+    conversationHistory.push({ type, content, meta });
+    saveHistory();
+  }
+
   return div;
+}
+
+function addMessage(type, content, meta = null) {
+  return addMessageToDOM(type, content, meta, true);
 }
 
 function createStreamingMessage() {
@@ -111,7 +229,7 @@ function createStreamingMessage() {
   div.className = 'message assistant streaming';
   div.innerHTML = `
     <div class="pipeline" id="stream-pipeline"></div>
-    <div class="progress-status" id="stream-progress"><span class="spinner"></span> <span class="progress-text">Starting...</span></div>
+    <div class="progress-status" id="stream-progress"><span class="spinner"></span> <span class="progress-text">Starting...</span> <span class="elapsed" id="stream-elapsed">0s</span></div>
     <div class="content markdown" id="stream-content"></div>
     <div class="meta" id="stream-meta"></div>
   `;
@@ -120,25 +238,11 @@ function createStreamingMessage() {
   return div;
 }
 
-function addLoading() {
-  const div = document.createElement('div');
-  div.className = 'loading-indicator';
-  div.id = 'loading';
-  div.innerHTML = '<div class="dot"></div><div class="dot"></div><div class="dot"></div><span>Processing...</span>';
-  messagesEl.appendChild(div);
-  scrollToBottom();
-}
-
-function removeLoading() {
-  const el = document.getElementById('loading');
-  if (el) el.remove();
-}
-
 // === STREAMING QUERY ===
 async function sendStreamingQuery() {
   const query = queryInput.value.trim();
   if (!query) return;
-  if (isProcessing) return; // Block concurrent queries
+  if (isProcessing) return;
 
   isProcessing = true;
   queryInput.value = '';
@@ -161,7 +265,15 @@ async function sendStreamingQuery() {
   const contentEl = streamDiv.querySelector('#stream-content');
   const pipelineEl = streamDiv.querySelector('#stream-pipeline');
   const metaEl = streamDiv.querySelector('#stream-meta');
+  const elapsedEl = streamDiv.querySelector('#stream-elapsed');
   let fullText = '';
+
+  // Elapsed timer
+  const startTime = Date.now();
+  const elapsedTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    if (elapsedEl) elapsedEl.textContent = `${elapsed}s`;
+  }, 1000);
 
   try {
     const res = await fetch('/api/query/stream', {
@@ -177,6 +289,7 @@ async function sendStreamingQuery() {
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Request failed' }));
       contentEl.innerHTML = `<span class="error">Error: ${escapeHtml(err.error)}</span>`;
+      clearInterval(elapsedTimer);
       return;
     }
 
@@ -218,6 +331,7 @@ async function sendStreamingQuery() {
             contentEl.innerHTML = renderMarkdown(fullText) + '<span class="cursor">▊</span>';
             scrollToBottom();
           } else if (event.type === 'done') {
+            clearInterval(elapsedTimer);
             // Finalize
             contentEl.innerHTML = renderMarkdown(fullText);
             streamDiv.classList.remove('streaming');
@@ -241,7 +355,16 @@ async function sendStreamingQuery() {
             metaEl.innerHTML = metaHtml;
 
             queryCount++;
+
+            // Save to history
+            conversationHistory.push({
+              type: 'assistant',
+              content: fullText,
+              meta: { intent: event.intent, durationMs: event.durationMs, steps: event.steps },
+            });
+            saveHistory();
           } else if (event.type === 'error') {
+            clearInterval(elapsedTimer);
             contentEl.innerHTML = `<span class="error">Error: ${escapeHtml(event.error)}</span>`;
             streamDiv.classList.remove('streaming');
           }
@@ -253,11 +376,13 @@ async function sendStreamingQuery() {
 
     // If stream ended without 'done' event
     if (streamDiv.classList.contains('streaming')) {
+      clearInterval(elapsedTimer);
       contentEl.innerHTML = renderMarkdown(fullText) || '<em>No response</em>';
       streamDiv.classList.remove('streaming');
     }
 
   } catch (err) {
+    clearInterval(elapsedTimer);
     contentEl.innerHTML = `<span class="error">Connection error: ${escapeHtml(err.message)}</span>`;
     streamDiv.classList.remove('streaming');
   } finally {
@@ -313,7 +438,6 @@ let audioChunks = [];
 
 micBtn.addEventListener('click', async () => {
   if (mediaRecorder && mediaRecorder.state === 'recording') {
-    // Stop recording
     mediaRecorder.stop();
     micBtn.classList.remove('recording');
     return;
@@ -328,8 +452,6 @@ micBtn.addEventListener('click', async () => {
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach((t) => t.stop());
       const blob = new Blob(audioChunks, { type: 'audio/webm' });
-      // For now, show a message that audio was captured
-      // STT would process this server-side
       queryInput.value = '[Voice input captured — STT processing on device]';
       queryInput.focus();
     };
@@ -340,6 +462,49 @@ micBtn.addEventListener('click', async () => {
     addMessage('system', 'Microphone access denied. Please allow microphone access.');
   }
 });
+
+// === CLEAR CHAT ===
+if (clearBtn) {
+  clearBtn.addEventListener('click', () => {
+    // Keep only the welcome message
+    messagesEl.innerHTML = '';
+    const welcome = document.createElement('div');
+    welcome.className = 'message system';
+    welcome.innerHTML = `<div class="content"><strong>Welcome to DevBrain v2.0</strong><br>Chat cleared. Ask questions about your indexed codebase.</div>`;
+    messagesEl.appendChild(welcome);
+    conversationHistory = [];
+    saveHistory();
+  });
+}
+
+// === EXPORT CONVERSATION ===
+if (exportBtn) {
+  exportBtn.addEventListener('click', () => {
+    if (conversationHistory.length === 0) {
+      addMessage('system', 'Nothing to export.');
+      return;
+    }
+    let md = '# DevBrain Conversation Export\n\n';
+    md += `Exported: ${new Date().toLocaleString()}\n\n---\n\n`;
+    for (const msg of conversationHistory) {
+      if (msg.type === 'user') {
+        md += `## User\n\n${msg.content}\n\n`;
+      } else if (msg.type === 'assistant') {
+        md += `## DevBrain`;
+        if (msg.meta?.intent) md += ` (${msg.meta.intent})`;
+        if (msg.meta?.durationMs) md += ` — ${(msg.meta.durationMs / 1000).toFixed(1)}s`;
+        md += `\n\n${msg.content}\n\n---\n\n`;
+      }
+    }
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `devbrain-export-${Date.now()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
 
 // === EVENT LISTENERS ===
 sendBtn.addEventListener('click', sendStreamingQuery);
@@ -423,7 +588,6 @@ async function updateStatus() {
     const modelKeys = Object.keys(models);
     if (modelKeys.length > 0) {
       modelList.innerHTML = modelKeys.map((key) => {
-        const m = models[key];
         return `<div class="status-item model-item">
           <span class="model-dot active"></span>
           <span class="label">${key}</span>
@@ -480,6 +644,20 @@ evtSource.onmessage = (e) => {
   }
 };
 
-// Initial status + polling
+// === KEYBOARD SHORTCUTS ===
+document.addEventListener('keydown', (e) => {
+  // Ctrl/Cmd + K to focus input
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    queryInput.focus();
+  }
+  // Escape to close modals
+  if (e.key === 'Escape') {
+    logsModal.classList.add('hidden');
+  }
+});
+
+// Initial status + polling + load history
+loadHistory();
 updateStatus();
 setInterval(updateStatus, 5000);

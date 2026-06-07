@@ -36,7 +36,7 @@ export function createServer({ codebasePath, workspace }) {
       try {
         const result = await handleQuery(query, {
           workspace,
-          codebasePath,
+          codebasePath: app.activePath || codebasePath,
           imageData,
           imageMimeType,
         });
@@ -54,6 +54,32 @@ export function createServer({ codebasePath, workspace }) {
       return res.status(400).json({ error: 'Missing "query" field' });
     }
 
+    // Handle /index command from chat
+    const indexMatch = query.match(/^\/index\s+(.+)$/);
+    if (indexMatch) {
+      const targetPath = indexMatch[1].trim();
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+      res.write(`data: ${JSON.stringify({ type: 'start', query })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'progress', step: 'indexing', message: `Indexing ${targetPath}...` })}\n\n`);
+      try {
+        const result = await indexCodebase(targetPath, workspace);
+        app.activePath = targetPath;
+        const msg = `Re-indexed **${targetPath}**\n\n${result.filesCount} files, ${result.chunksCount} chunks indexed. You can now ask questions about this codebase.`;
+        res.write(`data: ${JSON.stringify({ type: 'token', token: msg })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'done', intent: 'index', steps: [{ agent: 'indexer', action: 'reindex' }], durationMs: 0 })}\n\n`);
+      } catch (err) {
+        res.write(`data: ${JSON.stringify({ type: 'token', token: `Error indexing: ${err.message}` })}\n\n`);
+        res.write(`data: ${JSON.stringify({ type: 'done', intent: 'index', steps: [{ agent: 'indexer', action: 'error' }], durationMs: 0 })}\n\n`);
+      }
+      res.end();
+      return;
+    }
+
     // Set up SSE
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -68,7 +94,7 @@ export function createServer({ codebasePath, workspace }) {
       try {
         const result = await handleQuery(query, {
           workspace,
-          codebasePath,
+          codebasePath: app.activePath || codebasePath,
           stream: true,
           imageData,
           imageMimeType,
@@ -102,6 +128,10 @@ export function createServer({ codebasePath, workspace }) {
     const targetPath = req.body.path || codebasePath;
     try {
       const result = await indexCodebase(targetPath, workspace);
+      // Update the active codebase path for tool agent
+      if (req.body.path) {
+        app.activePath = req.body.path;
+      }
       res.json(result);
     } catch (err) {
       res.status(500).json({ error: err.message });
