@@ -1,0 +1,28 @@
+{
+  "name": "DevBrain",
+  "version": "2.0.0",
+  "description": "Offline Code Intelligence Platform with Multi-Agent RAG, P2P Delegation, Multimodal Analysis, and Fine-Tuning",
+  "remote_apis": [],
+  "local_only": true,
+  "note": "DevBrain is 100% offline. Zero remote API calls. All inference (LLM, embeddings, vision, TTS, STT) runs locally via QVAC SDK on consumer hardware. P2P communication uses Holepunch DHT (peer-to-peer, no cloud relay).",
+  "qvac_sdk_usage": {
+    "inference": "qvac.completion() — multi-agent LLM inference with tool calling",
+    "embeddings": "qvac.embed() — code-aware vector embeddings",
+    "rag": "qvac.ragIngest() + qvac.ragSearch() — vector store for codebase chunks",
+    "multimodal": "qvac.completion() with image content — screenshot/diagram analysis",
+    "tts": "qvac.tts() — text-to-speech for voice output",
+    "stt": "qvac.transcribe() — speech-to-text for voice input",
+    "p2p": "qvac.startQVACProvider() + qvac.connectToQVACProvider() — delegated inference",
+    "fine_tuning": "qvac.fineTune() — LoRA adapter training via QVAC Fabric",
+    "model_management": "qvac.loadModel() + qvac.unloadModel() — lifecycle management"
+  },
+  "models_used": [
+    "Psy 4B Instruct Q4_K_M (primary LLM)",
+    "Psy Vision Q4_K_M (multimodal)",
+    "Psy TTS (text-to-speech)",
+    "Psy STT (speech-to-text)",
+    "GTE-Large FP16 (embeddings)",
+    "Llama 3.2 1B Instruct Q4_0 (fallback)"
+  ],
+  "third_party_services": "None. Fully air-gapped capable."
+}

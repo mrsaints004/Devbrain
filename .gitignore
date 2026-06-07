@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# QVAC SDK local data
+.qvac/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+
+# Coverage
+coverage/
+
+# Fine-tuning output
+finetune-output/
+training-data/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
