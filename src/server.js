@@ -60,6 +60,9 @@ export function createServer({ codebasePath, workspace }) {
         stream: true,
         imageData,
         imageMimeType,
+        onProgress: (progress) => {
+          res.write(`data: ${JSON.stringify({ type: 'progress', ...progress })}\n\n`);
+        },
         onToken: (token) => {
           res.write(`data: ${JSON.stringify({ type: 'token', token })}\n\n`);
         },

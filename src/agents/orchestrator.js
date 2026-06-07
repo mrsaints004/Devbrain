@@ -20,6 +20,7 @@ export async function handleQuery(query, options = {}) {
     codebasePath = '.',
     stream = false,
     onToken,
+    onProgress,
     imageData,
     imageMimeType,
     audioData,
@@ -61,16 +62,28 @@ export async function handleQuery(query, options = {}) {
   }
 
   // Step 1: Classify intent
+  if (onProgress) onProgress({ step: 'router', message: 'Classifying intent...' });
   const intent = await classifyIntent(finalQuery, !!imageData);
   logAgent('orchestrator', 'intent', { intent });
   steps.push({ agent: 'router', intent });
+  if (onProgress) onProgress({ step: 'router_done', intent });
 
   let response;
   const streamOpts = { stream, onToken };
 
+  // Helper: search RAG with progress
+  async function ragSearch() {
+    if (onProgress) onProgress({ step: 'rag', message: 'Searching codebase...' });
+    const chunks = await searchCode(finalQuery, workspace);
+    steps.push({ agent: 'rag', resultsCount: chunks.length });
+    if (onProgress) onProgress({ step: 'rag_done', resultsCount: chunks.length });
+    return chunks;
+  }
+
   try {
     switch (intent) {
       case 'analyze_image': {
+        if (onProgress) onProgress({ step: 'generating', message: 'Analyzing image...' });
         response = await analyzeImage(finalQuery, imageData, {
           ...streamOpts,
           mimeType: imageMimeType,
@@ -80,14 +93,14 @@ export async function handleQuery(query, options = {}) {
       }
 
       case 'search_code': {
-        const chunks = await searchCode(finalQuery, workspace);
-        steps.push({ agent: 'rag', resultsCount: chunks.length });
-
+        const chunks = await ragSearch();
         if (chunks.length > 0) {
+          if (onProgress) onProgress({ step: 'generating', message: 'Analyzing code...' });
           const context = formatContext(chunks);
           response = await analyze(finalQuery, context, 'general_question', streamOpts);
           steps.push({ agent: 'code', action: 'analyze' });
         } else {
+          if (onProgress) onProgress({ step: 'generating', message: 'Using tools to search...' });
           response = await handleWithTools(finalQuery, codebasePath, streamOpts);
           steps.push({ agent: 'tool', action: 'fallback_search' });
         }
@@ -95,13 +108,14 @@ export async function handleQuery(query, options = {}) {
       }
 
       case 'explain_code': {
-        const chunks = await searchCode(finalQuery, workspace);
-        steps.push({ agent: 'rag', resultsCount: chunks.length });
+        const chunks = await ragSearch();
         if (chunks.length > 0) {
+          if (onProgress) onProgress({ step: 'generating', message: 'Explaining code...' });
           const context = formatContext(chunks);
           response = await analyze(finalQuery, context, 'explain_code', streamOpts);
           steps.push({ agent: 'code', action: 'explain' });
         } else {
+          if (onProgress) onProgress({ step: 'generating', message: 'Using tools...' });
           response = await handleWithTools(finalQuery, codebasePath, streamOpts);
           steps.push({ agent: 'tool', action: 'fallback_explain' });
         }
@@ -109,13 +123,14 @@ export async function handleQuery(query, options = {}) {
       }
 
       case 'find_bug': {
-        const chunks = await searchCode(finalQuery, workspace);
-        steps.push({ agent: 'rag', resultsCount: chunks.length });
+        const chunks = await ragSearch();
         if (chunks.length > 0) {
+          if (onProgress) onProgress({ step: 'generating', message: 'Finding bugs...' });
           const context = formatContext(chunks);
           response = await analyze(finalQuery, context, 'find_bug', streamOpts);
           steps.push({ agent: 'code', action: 'find_bug' });
         } else {
+          if (onProgress) onProgress({ step: 'generating', message: 'Using tools...' });
           response = await handleWithTools(finalQuery, codebasePath, streamOpts);
           steps.push({ agent: 'tool', action: 'fallback_bug' });
         }
@@ -123,13 +138,14 @@ export async function handleQuery(query, options = {}) {
       }
 
       case 'refactor': {
-        const chunks = await searchCode(finalQuery, workspace);
-        steps.push({ agent: 'rag', resultsCount: chunks.length });
+        const chunks = await ragSearch();
         if (chunks.length > 0) {
+          if (onProgress) onProgress({ step: 'generating', message: 'Suggesting refactors...' });
           const context = formatContext(chunks);
           response = await analyze(finalQuery, context, 'refactor', streamOpts);
           steps.push({ agent: 'code', action: 'refactor' });
         } else {
+          if (onProgress) onProgress({ step: 'generating', message: 'Using tools...' });
           response = await handleWithTools(finalQuery, codebasePath, streamOpts);
           steps.push({ agent: 'tool', action: 'fallback_refactor' });
         }
@@ -137,13 +153,14 @@ export async function handleQuery(query, options = {}) {
       }
 
       case 'generate_docs': {
-        const chunks = await searchCode(finalQuery, workspace);
-        steps.push({ agent: 'rag', resultsCount: chunks.length });
+        const chunks = await ragSearch();
         if (chunks.length > 0) {
+          if (onProgress) onProgress({ step: 'generating', message: 'Generating docs...' });
           const context = formatContext(chunks);
           response = await generateDocs(finalQuery, context, streamOpts);
           steps.push({ agent: 'doc', action: 'generate' });
         } else {
+          if (onProgress) onProgress({ step: 'generating', message: 'Using tools...' });
           response = await handleWithTools(finalQuery, codebasePath, streamOpts);
           steps.push({ agent: 'tool', action: 'fallback_docs' });
         }
@@ -152,14 +169,15 @@ export async function handleQuery(query, options = {}) {
 
       case 'general_question':
       default: {
-        const chunks = await searchCode(finalQuery, workspace);
-        steps.push({ agent: 'rag', resultsCount: chunks.length });
+        const chunks = await ragSearch();
 
         if (chunks.length > 0) {
+          if (onProgress) onProgress({ step: 'generating', message: 'Generating answer...' });
           const context = formatContext(chunks);
           response = await analyze(finalQuery, context, 'general_question', streamOpts);
           steps.push({ agent: 'code', action: 'answer' });
         } else {
+          if (onProgress) onProgress({ step: 'generating', message: 'Using tools...' });
           response = await handleWithTools(finalQuery, codebasePath, streamOpts);
           steps.push({ agent: 'tool', action: 'fallback' });
         }

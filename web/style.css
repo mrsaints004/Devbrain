@@ -397,6 +397,40 @@ body {
   50% { opacity: 1; transform: scale(1.2); }
 }
 
+/* Progress status during generation */
+.progress-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.progress-status .spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.pipeline-step.generating {
+  color: var(--accent);
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 /* File change notifications */
 .file-changes {
   position: absolute;

@@ -110,7 +110,8 @@ function createStreamingMessage() {
   div.className = 'message assistant streaming';
   div.innerHTML = `
     <div class="pipeline" id="stream-pipeline"></div>
-    <div class="content markdown" id="stream-content"><span class="cursor">▊</span></div>
+    <div class="progress-status" id="stream-progress"><span class="spinner"></span> <span class="progress-text">Starting...</span></div>
+    <div class="content markdown" id="stream-content"></div>
     <div class="meta" id="stream-meta"></div>
   `;
   messagesEl.appendChild(div);
@@ -191,7 +192,23 @@ async function sendStreamingQuery() {
         try {
           const event = JSON.parse(line.slice(6));
 
-          if (event.type === 'token') {
+          if (event.type === 'progress') {
+            const progressEl = streamDiv.querySelector('#stream-progress');
+            const progressText = progressEl.querySelector('.progress-text');
+            progressText.textContent = event.message || event.step;
+            // Build pipeline as steps arrive
+            if (event.step === 'router_done' && event.intent) {
+              pipelineEl.innerHTML = `<span class="pipeline-step">router: ${escapeHtml(event.intent)}</span>`;
+            } else if (event.step === 'rag_done') {
+              pipelineEl.innerHTML += `<span class="pipeline-arrow">→</span><span class="pipeline-step">rag: ${event.resultsCount} results</span>`;
+            } else if (event.step === 'generating') {
+              pipelineEl.innerHTML += `<span class="pipeline-arrow">→</span><span class="pipeline-step generating">generating...</span>`;
+            }
+            scrollToBottom();
+          } else if (event.type === 'token') {
+            // Hide progress indicator once tokens start flowing
+            const progressEl = streamDiv.querySelector('#stream-progress');
+            if (progressEl) progressEl.style.display = 'none';
             fullText += event.token;
             contentEl.innerHTML = renderMarkdown(fullText) + '<span class="cursor">▊</span>';
             scrollToBottom();
