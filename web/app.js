@@ -18,6 +18,7 @@ const micBtn = document.getElementById('mic-btn');
 
 let queryCount = 0;
 let attachedImage = null; // { data: base64, mimeType: string }
+let isProcessing = false; // Lock to prevent concurrent queries
 
 // === MARKDOWN RENDERING ===
 function renderMarkdown(text) {
@@ -137,10 +138,14 @@ function removeLoading() {
 async function sendStreamingQuery() {
   const query = queryInput.value.trim();
   if (!query) return;
+  if (isProcessing) return; // Block concurrent queries
 
+  isProcessing = true;
   queryInput.value = '';
   queryInput.style.height = 'auto';
   sendBtn.disabled = true;
+  queryInput.disabled = true;
+  queryInput.placeholder = 'Waiting for response...';
 
   addMessage('user', query);
 
@@ -256,7 +261,10 @@ async function sendStreamingQuery() {
     contentEl.innerHTML = `<span class="error">Connection error: ${escapeHtml(err.message)}</span>`;
     streamDiv.classList.remove('streaming');
   } finally {
+    isProcessing = false;
     sendBtn.disabled = false;
+    queryInput.disabled = false;
+    queryInput.placeholder = 'Ask about your codebase... (drop images here)';
     queryInput.focus();
     clearImage();
   }

@@ -14,6 +14,15 @@ export function createServer({ codebasePath, workspace }) {
   app.use(express.json({ limit: '20mb' })); // Allow image uploads
   app.use(express.static(join(import.meta.dirname, '..', 'web')));
 
+  // Simple request queue to prevent model-busy rejections
+  let queryLock = Promise.resolve();
+  function withLock(fn) {
+    const prev = queryLock;
+    let resolve;
+    queryLock = new Promise((r) => { resolve = r; });
+    return prev.then(fn).finally(resolve);
+  }
+
   // === QUERY ENDPOINTS ===
 
   // Standard query (blocking)
@@ -23,17 +32,19 @@ export function createServer({ codebasePath, workspace }) {
       return res.status(400).json({ error: 'Missing "query" field' });
     }
 
-    try {
-      const result = await handleQuery(query, {
-        workspace,
-        codebasePath,
-        imageData,
-        imageMimeType,
-      });
-      res.json(result);
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
+    await withLock(async () => {
+      try {
+        const result = await handleQuery(query, {
+          workspace,
+          codebasePath,
+          imageData,
+          imageMimeType,
+        });
+        res.json(result);
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
   });
 
   // Streaming query via Server-Sent Events
@@ -53,32 +64,34 @@ export function createServer({ codebasePath, workspace }) {
 
     res.write(`data: ${JSON.stringify({ type: 'start', query })}\n\n`);
 
-    try {
-      const result = await handleQuery(query, {
-        workspace,
-        codebasePath,
-        stream: true,
-        imageData,
-        imageMimeType,
-        onProgress: (progress) => {
-          res.write(`data: ${JSON.stringify({ type: 'progress', ...progress })}\n\n`);
-        },
-        onToken: (token) => {
-          res.write(`data: ${JSON.stringify({ type: 'token', token })}\n\n`);
-        },
-      });
+    await withLock(async () => {
+      try {
+        const result = await handleQuery(query, {
+          workspace,
+          codebasePath,
+          stream: true,
+          imageData,
+          imageMimeType,
+          onProgress: (progress) => {
+            res.write(`data: ${JSON.stringify({ type: 'progress', ...progress })}\n\n`);
+          },
+          onToken: (token) => {
+            res.write(`data: ${JSON.stringify({ type: 'token', token })}\n\n`);
+          },
+        });
 
-      // Send final result with metadata
-      res.write(`data: ${JSON.stringify({
-        type: 'done',
-        intent: result.intent,
-        steps: result.steps,
-        durationMs: result.durationMs,
-        security: result.security,
-      })}\n\n`);
-    } catch (err) {
-      res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
-    }
+        // Send final result with metadata
+        res.write(`data: ${JSON.stringify({
+          type: 'done',
+          intent: result.intent,
+          steps: result.steps,
+          durationMs: result.durationMs,
+          security: result.security,
+        })}\n\n`);
+      } catch (err) {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
+      }
+    });
 
     res.end();
   });
