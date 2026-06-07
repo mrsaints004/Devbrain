@@ -46,6 +46,9 @@ export async function generateDocs(query, context, options = {}) {
     agent: 'doc',
   });
 
+  // Filter output BEFORE streaming
+  docs = filterOutput(docs);
+
   // Simulate streaming to callback
   if (stream && onToken && docs) {
     const words = docs.split(' ');
@@ -54,7 +57,6 @@ export async function generateDocs(query, context, options = {}) {
     }
   }
 
-  docs = filterOutput(docs);
   logAgent('doc', 'done', { docsLength: docs.length });
   return docs;
 }

@@ -97,6 +97,9 @@ User's question: ${query}`;
     });
   }
 
+  // Filter output BEFORE streaming
+  answer = filterOutput(answer);
+
   // Simulate streaming to callback
   if (stream && onToken && answer) {
     const words = answer.split(' ');
@@ -105,7 +108,6 @@ User's question: ${query}`;
     }
   }
 
-  answer = filterOutput(answer);
   logAgent('vision', 'done', { answerLength: answer.length });
   return answer;
 }

@@ -115,6 +115,9 @@ export async function handleWithTools(query, codebasePath, options = {}) {
     });
   }
 
+  // Filter output BEFORE streaming
+  answer = filterOutput(answer);
+
   // Simulate streaming to callback
   if (stream && onToken && answer) {
     const words = answer.split(' ');
@@ -123,7 +126,6 @@ export async function handleWithTools(query, codebasePath, options = {}) {
     }
   }
 
-  answer = filterOutput(answer);
   logAgent('tool', 'done', { answerLength: answer.length });
   return answer;
 }

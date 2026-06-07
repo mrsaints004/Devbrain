@@ -29,12 +29,12 @@ export async function classifyIntent(query, hasImage = false) {
   // Fast path: if image is attached, route to analyze_image
   if (hasImage) return 'analyze_image';
 
-  // Keyword-based fast paths for reliable classification
+  // Keyword-based fast paths for reliable classification (order matters!)
   const q = query.toLowerCase();
-  if (/\b(bug|bugs|error|errors|issue|issues|problem|wrong|broken|fix|debug)\b/.test(q)) return 'find_bug';
-  if (/\b(refactor|improve|clean\s?up|optimize|simplify)\b/.test(q)) return 'refactor';
-  if (/\b(explain|how\s+does|what\s+does|walk\s+me\s+through|understand)\b/.test(q)) return 'explain_code';
-  if (/\b(document|docs|documentation|jsdoc|readme)\b/.test(q)) return 'generate_docs';
+  if (/\b(bug|bugs|err?ors?|issue|issues|problem|problems|wrong|broken|fix|debug|vulnerability|vulnerabilities|lint)\b/.test(q)) return 'find_bug';
+  if (/\b(refactor|improve|clean\s?up|optimize|simplify|performance)\b/.test(q)) return 'refactor';
+  if (/\b(explain|how\s+does|what\s+does|walk\s+me\s+through|understand|what\s+is)\b/.test(q)) return 'explain_code';
+  if (/\b(document|docs|documentation|jsdoc|readme|docstring)\b/.test(q)) return 'generate_docs';
   if (/\b(find|search|where|locate|grep|which\s+file)\b/.test(q)) return 'search_code';
 
   const modelId = getModelId('llm');

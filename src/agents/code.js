@@ -56,6 +56,9 @@ export async function analyze(query, context, intent = 'explain_code', options =
     agent: 'code',
   });
 
+  // Filter output BEFORE streaming (removes <think> tags, credentials, etc.)
+  answer = filterOutput(answer);
+
   // Simulate streaming by sending tokens in chunks to the callback
   if (stream && onToken && answer) {
     const words = answer.split(' ');
@@ -64,7 +67,6 @@ export async function analyze(query, context, intent = 'explain_code', options =
     }
   }
 
-  answer = filterOutput(answer);
   logAgent('code', 'done', { answerLength: answer.length });
   return answer;
 }
