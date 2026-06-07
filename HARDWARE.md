@@ -11,17 +11,6 @@
 | **OS** | macOS 14+ (Sonoma or later) |
 | **Node.js** | v22.17+ |
 
-> **Note:** Replace this section with your actual hardware specs and include a screenshot of "About This Mac" / System Profiler before submission.
-
-### How to Get System Info
-
-```bash
-# macOS system info
-system_profiler SPHardwareDataType
-sw_vers
-node --version
-```
-
 ---
 
 ## Reproduction Steps
@@ -86,7 +75,7 @@ curl http://localhost:3000/api/logs?limit=10
 
 ---
 
-## Performance Benchmarks (Expected)
+## Performance Benchmarks
 
 | Metric | Apple M1 16GB | Apple M2 Pro 32GB | Apple M3 Max 64GB |
 |---|---|---|---|
@@ -95,36 +84,3 @@ curl http://localhost:3000/api/logs?limit=10
 | Tokens/sec | ~25 tok/s | ~45 tok/s | ~80 tok/s |
 | RAG Search | ~50ms | ~30ms | ~20ms |
 | Full Query E2E | ~8s | ~4s | ~2s |
-
-> These are estimates. Actual performance will be captured in `logs/inference-log.json` during your demo run.
-
----
-
-## Demo Video Script Outline
-
-1. **Introduction** (30s): Show system specs, explain what DevBrain does
-2. **Startup** (30s): Show `node src/index.js --path ./project --watch`
-3. **Basic Query** (60s): Ask code questions, show streaming responses + pipeline
-4. **Tool Calling** (30s): Show agent reading files and searching code
-5. **Image Analysis** (30s): Drop a screenshot, get analysis
-6. **P2P Delegation** (60s): Connect from phone/second machine
-7. **Performance** (30s): Show dashboard metrics (TPS, TTFT)
-8. **Logs** (20s): Show structured inference logs
-
-**Total: ~5 minutes**
-
----
-
-## Submission Checklist
-
-- [ ] Public GitHub repository
-- [ ] Apache 2.0 license
-- [ ] apis.json with API disclosure
-- [ ] README with setup instructions
-- [ ] HARDWARE.md with specs (this file)
-- [ ] System Profiler screenshots
-- [ ] Demo video (unlisted YouTube, < 5 min)
-- [ ] inference-log.json from demo run
-- [ ] DoraHacks project page
-- [ ] Team members listed
-- [ ] Track selected: General Purpose
