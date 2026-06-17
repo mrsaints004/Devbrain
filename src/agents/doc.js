@@ -46,10 +46,8 @@ export async function generateDocs(query, context, options = {}) {
     agent: 'doc',
   });
 
-  // Filter output BEFORE streaming
   docs = filterOutput(docs);
 
-  // Simulate streaming to callback
   if (stream && onToken && docs) {
     const words = docs.split(' ');
     for (const word of words) {

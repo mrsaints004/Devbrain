@@ -18,12 +18,10 @@ if (existsSync(LOG_FILE)) {
   }
 }
 
-// Create CSV header if file doesn't exist
 if (!existsSync(CSV_FILE)) {
   writeFileSync(CSV_FILE, 'timestamp,session_id,event,agent,model_id,prompt,tokens_in,tokens_out,ttft_ms,tps,duration_ms\n');
 }
 
-// Session tracking for demo artifacts
 const sessionId = `session-${Date.now()}`;
 let sessionStart = Date.now();
 

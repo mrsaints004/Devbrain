@@ -23,10 +23,6 @@ export async function searchCode(query, workspace, limit = 8) {
   }
 }
 
-/**
- * Re-rank RAG results using the LLM to pick the most relevant chunks.
- * Retrieves more results initially, then uses the LLM to score relevance.
- */
 export async function rerankResults(query, chunks, topK = 5) {
   if (chunks.length <= topK) return chunks;
 
@@ -36,7 +32,6 @@ export async function rerankResults(query, chunks, topK = 5) {
   logAgent('reranker', 'start', { candidates: chunks.length, topK });
   const start = Date.now();
 
-  // Build a compact representation for the LLM to score
   const candidateList = chunks.map((c, i) =>
     `[${i}] ${c.content.slice(0, 200).replace(/\n/g, ' ')}`
   ).join('\n');
@@ -73,13 +68,11 @@ export async function rerankResults(query, chunks, topK = 5) {
       agent: 'reranker',
     });
 
-    // Parse indices from response
     const indices = responseText
       .split(/[,\s]+/)
       .map((s) => parseInt(s.trim(), 10))
       .filter((n) => !isNaN(n) && n >= 0 && n < chunks.length);
 
-    // Deduplicate while preserving order
     const seen = new Set();
     const reranked = [];
     for (const idx of indices) {
@@ -90,7 +83,6 @@ export async function rerankResults(query, chunks, topK = 5) {
       if (reranked.length >= topK) break;
     }
 
-    // If LLM returned too few, pad with remaining by original score
     if (reranked.length < topK) {
       for (const chunk of chunks) {
         if (reranked.length >= topK) break;

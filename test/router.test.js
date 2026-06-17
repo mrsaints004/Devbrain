@@ -1,14 +1,7 @@
-/**
- * Router intent classification tests.
- * Tests keyword fast-paths to ensure queries are routed correctly.
- * Run: node test/router.test.js
- */
-
 import { strict as assert } from 'node:assert';
-
-// We test the keyword fast-paths directly (these don't need QVAC SDK)
 const INTENT_PATTERNS = {
   security_audit: /\b(security\s+(?:audit|review|scan|check|assess)|vulnerability\s+(?:scan|assess|check)|penetration|pen\s?test|safety\s+(?:analysis|review|check)|threat\s+model)\b/i,
+  deep_review: /\b(deep\s+review|code\s+review|thorough\s+(?:analysis|review)|diagnos(?:e|tic|is)|comprehensive\s+review|quality\s+(?:review|assessment|check|audit))\b/,
   find_bug: /\b(bug|bugs|err?ors?|issue|issues|problem|problems|wrong|broken|fix|debug|vulnerability|vulnerabilities|lint)\b/,
   refactor: /\b(refactor|improve|clean\s?up|optimize|simplify|performance)\b/,
   explain_code: /\b(explain|how\s+does|what\s+does|walk\s+me\s+through|understand|what\s+is)\b/,
@@ -32,6 +25,17 @@ const tests = [
   ['Do a penetration test assessment', 'security_audit'],
   ['Safety analysis of the payment module', 'security_audit'],
   ['Threat model the user input flow', 'security_audit'],
+
+  // Deep review
+  ['Do a deep review of the authentication module', 'deep_review'],
+  ['Run a code review on the API handlers', 'deep_review'],
+  ['Thorough analysis of the error handling', 'deep_review'],
+  ['Diagnose the performance issues in this code', 'deep_review'],
+  ['Comprehensive review of the security guard', 'deep_review'],
+  ['Quality assessment of the RAG pipeline', 'deep_review'],
+  ['Code quality check on the orchestrator', 'deep_review'],
+  ['Diagnostic review of the router module', 'deep_review'],
+  ['Do a thorough review of the codebase', 'deep_review'],
 
   // Bug finding
   ['Find bugs in the server code', 'find_bug'],

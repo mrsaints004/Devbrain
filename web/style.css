@@ -463,6 +463,7 @@ body {
 .pipeline-step.agent-vision { border-color: #ec4899; color: #ec4899; }
 .pipeline-step.agent-llm { border-color: var(--accent); color: var(--accent); }
 .pipeline-step.agent-security { border-color: var(--error); color: var(--error); }
+.pipeline-step.agent-review { border-color: #f472b6; color: #f472b6; }
 .pipeline-step.agent-stt { border-color: var(--warning); color: var(--warning); }
 .pipeline-step.agent-error { border-color: var(--error); color: var(--error); }
 
@@ -865,21 +866,248 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
+/* Psy Models badge */
+.badge-psy {
+  background: linear-gradient(135deg, #ec4899, #a855f7) !important;
+  margin-left: 4px;
+}
+
+/* Psy feature chip */
+.chip-psy {
+  background: rgba(236, 72, 153, 0.12) !important;
+  border-color: rgba(236, 72, 153, 0.3) !important;
+  color: #f472b6 !important;
+}
+
+/* Quick action buttons */
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 24px 8px;
+}
+
+.quick-btn {
+  padding: 5px 14px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--font-sans);
+}
+
+.quick-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+/* Mobile nav toggle */
+.mobile-nav-toggle {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 200;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text);
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(8px);
+}
+
+/* Sidebar overlay on mobile */
+.sidebar.mobile-open {
+  display: flex !important;
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  width: 300px;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 140;
+  backdrop-filter: blur(4px);
+}
+
+/* Powered by footer */
+.powered-by {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 8px 0 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
+/* LAN access panel */
+.qr-container {
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* Benchmark modal body */
+.benchmark-body {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: 70vh;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.benchmark-placeholder {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 20px;
+}
+
+.benchmark-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.benchmark-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.benchmark-card h4 {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.benchmark-card .bm-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+
+.benchmark-card .bm-value.green { color: var(--success); }
+.benchmark-card .bm-value.red { color: var(--error); }
+
+.benchmark-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  margin-top: 12px;
+}
+
+.benchmark-table th, .benchmark-table td {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.benchmark-table th {
+  background: var(--bg-tertiary);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.benchmark-table tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.benchmark-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.comparison-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+
+.comparison-card.local {
+  border-color: var(--success);
+}
+
+.comparison-card.cloud {
+  border-color: var(--error);
+  opacity: 0.7;
+}
+
+.comparison-card h4 {
+  font-size: 0.75rem;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.comparison-card.local h4 { color: var(--success); }
+.comparison-card.cloud h4 { color: var(--error); }
+
+.comparison-card .comp-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 0.78rem;
+}
+
+.comp-row .comp-label { color: var(--text-muted); }
+.comp-row .comp-value { font-weight: 600; font-family: var(--font-mono); }
+
+/* Glassmorphism for status panels */
+.health-panel, .dashboard, .status-panel {
+  backdrop-filter: blur(10px);
+  background: rgba(26, 31, 43, 0.75);
+  border: 1px solid rgba(42, 48, 64, 0.6);
+}
+
+/* Smooth transitions on panels */
+.sidebar > * {
+  transition: opacity 0.2s, transform 0.2s;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .layout { grid-template-columns: 1fr; }
   .sidebar { display: none; }
+  .mobile-nav-toggle { display: flex !important; }
   .message { max-width: 95%; }
   .input-area { padding: 10px 12px; }
   .input-wrapper { padding: 8px 10px; }
-  .messages { padding: 14px; gap: 12px; }
+  .messages { padding: 14px; gap: 12px; padding-top: 50px; }
   .code-block { font-size: 0.75rem; padding: 8px; }
   .pipeline { gap: 2px; }
   .pipeline-step { font-size: 0.6rem; padding: 2px 6px; }
+  .quick-actions { padding: 0 12px 6px; }
+  .quick-btn { font-size: 0.65rem; padding: 4px 10px; }
+  .benchmark-grid { grid-template-columns: 1fr; }
+  .benchmark-comparison { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
   .message { max-width: 100%; padding: 10px 12px; }
   .btn-icon { width: 28px; height: 28px; }
   .input-actions { gap: 2px; }
+  .quick-actions { gap: 4px; }
+  .welcome-features { gap: 4px; }
+  .feature-chip { font-size: 0.6rem; padding: 2px 7px; }
 }

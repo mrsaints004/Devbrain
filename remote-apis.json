@@ -1,7 +1,15 @@
 {
   "project": "DevBrain",
   "version": "2.0.0",
-  "description": "This project runs 100% offline. No remote API calls are made during inference, embedding, RAG, TTS, STT, or any AI workload.",
+  "description": "This project runs 100% offline at runtime. No remote API calls are made during inference, embedding, RAG, TTS, STT, or any AI workload.",
   "remote_apis": [],
-  "notes": "All AI inference is performed locally via QVAC SDK. No data leaves the device. The only network activity is optional P2P model sharing via Holepunch DHT between consenting local devices."
+  "model_downloads": [
+    {
+      "url": "https://huggingface.co/qvac/MedPsy-4B-GGUF/resolve/main/MedPsy-4B-Q4_K_M.gguf",
+      "purpose": "One-time download of MedPsy-4B GGUF model for deep code review agent (Psy Models track)",
+      "when": "First startup only — cached locally after download",
+      "runtime_api": false
+    }
+  ],
+  "notes": "All AI inference is performed locally via QVAC SDK. No data leaves the device at runtime. The MedPsy model is downloaded once from HuggingFace on first load, then all subsequent runs are fully offline. The only other network activity is optional P2P model sharing via Holepunch DHT between consenting local devices."
 }

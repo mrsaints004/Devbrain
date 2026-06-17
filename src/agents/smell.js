@@ -21,7 +21,6 @@ Rules:
 export async function detectSmells(filePath, content) {
   if (!hasModel('llm')) return null;
   if (!content || content.length < 20) return null;
-  // Skip very large files (would overwhelm context)
   if (content.length > 8000) {
     content = content.slice(0, 8000);
   }
@@ -62,7 +61,6 @@ export async function detectSmells(filePath, content) {
 
     answer = filterOutput(answer);
 
-    // If no issues, return null
     if (!answer || answer.toLowerCase().includes('no issues detected')) {
       logAgent('smell', 'clean', { filePath });
       return null;

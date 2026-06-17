@@ -1,6 +1,7 @@
 import { classifyIntent } from './router.js';
 import { searchCode, formatContext, rerankResults } from './rag.js';
 import { analyze } from './code.js';
+import { deepReview } from './review.js';
 import { handleWithTools } from './tool.js';
 import { generateDocs } from './doc.js';
 import { analyzeImage, transcribeAudio, synthesizeSpeech } from './vision.js';
@@ -24,7 +25,6 @@ export async function handleQuery(query, options = {}) {
 
   const startTime = Date.now();
 
-  // Security: sanitize input
   const { sanitized, threats, processable } = sanitizeInput(query);
   if (!processable) {
     return {
@@ -39,7 +39,6 @@ export async function handleQuery(query, options = {}) {
   const safeQuery = sanitized;
   logAgent('orchestrator', 'start', { query: safeQuery.slice(0, 150), hasImage: !!imageData, hasAudio: !!audioData });
 
-  // Handle audio input: transcribe first
   let finalQuery = safeQuery;
   const steps = [];
 
@@ -66,7 +65,6 @@ export async function handleQuery(query, options = {}) {
   let response;
   const streamOpts = { stream, onToken };
 
-  // Helper: search RAG with progress
   async function ragSearch(searchQuery, limit = 8) {
     if (onProgress) onProgress({ step: 'rag', message: 'Searching codebase...' });
     const chunks = await searchCode(searchQuery || finalQuery, workspace, limit);
@@ -75,7 +73,6 @@ export async function handleQuery(query, options = {}) {
     return chunks;
   }
 
-  // Helper: re-rank RAG results for better precision
   async function ragSearchWithRerank(searchQuery, limit = 5) {
     const rawChunks = await ragSearch(searchQuery, 12);
     if (rawChunks.length <= limit) return rawChunks;
@@ -85,7 +82,6 @@ export async function handleQuery(query, options = {}) {
     return reranked;
   }
 
-  // Multi-agent chaining: Tool agent enriches context, then Code agent synthesizes
   async function chainToolThenCode(codeIntent) {
     if (onProgress) onProgress({ step: 'tool_search', message: 'Tool agent gathering context...' });
     let toolResult;
@@ -103,17 +99,13 @@ export async function handleQuery(query, options = {}) {
     return analyze(finalQuery, enrichedContext, codeIntent, streamOpts);
   }
 
-  // Deep analysis: RAG + Tool + Code chained together
   async function deepAnalysis(codeIntent) {
-    // Phase 1: RAG search with re-ranking
     const chunks = await ragSearchWithRerank(finalQuery);
 
     if (chunks.length > 0) {
       const context = formatContext(chunks);
 
-      // Phase 2: For bug-finding and refactoring, also run tool agent for live file state
       if ((codeIntent === 'find_bug' || codeIntent === 'refactor') && chunks.length > 0) {
-        // Extract file paths from RAG results to read fresh versions
         const filePaths = extractFilePaths(chunks);
         let toolContext = '';
         if (filePaths.length > 0) {
@@ -123,7 +115,7 @@ export async function handleQuery(query, options = {}) {
             toolContext = await handleWithTools(toolQuery, codebasePath, { stream: false });
             steps.push({ agent: 'tool', action: 'verify_files', files: filePaths.length });
           } catch {
-            // Tool agent failed, continue with RAG context only
+            /* proceed with RAG context */
           }
         }
 
@@ -137,12 +129,10 @@ export async function handleQuery(query, options = {}) {
         return;
       }
 
-      // Standard: RAG context -> Code agent
       if (onProgress) onProgress({ step: 'generating', message: 'Analyzing code...' });
       response = await analyze(finalQuery, context, codeIntent, streamOpts);
       steps.push({ agent: 'code', action: codeIntent });
     } else {
-      // No RAG results: fall back to chained Tool -> Code
       response = await chainToolThenCode(codeIntent);
       steps.push({ agent: 'code', action: `${codeIntent}_via_tool` });
     }
@@ -165,8 +155,42 @@ export async function handleQuery(query, options = {}) {
         break;
       }
 
+      case 'deep_review': {
+        const chunks = await ragSearchWithRerank(finalQuery);
+        let reviewContext = '';
+
+        if (chunks.length > 0) {
+          reviewContext = formatContext(chunks);
+          const filePaths = extractFilePaths(chunks);
+          if (filePaths.length > 0) {
+            if (onProgress) onProgress({ step: 'tool_verify', message: 'Reading live files for review...' });
+            try {
+              const toolQuery = `Read these files and show their current content: ${filePaths.slice(0, 3).join(', ')}`;
+              const toolResult = await handleWithTools(toolQuery, codebasePath, { stream: false });
+              steps.push({ agent: 'tool', action: 'verify_files', files: filePaths.length });
+              if (toolResult) {
+                reviewContext = `## Indexed Code (RAG)\n\n${reviewContext}\n\n## Live File Content\n\n${toolResult}`;
+              }
+            } catch { /* proceed with RAG context */ }
+          }
+        } else {
+          if (onProgress) onProgress({ step: 'tool_search', message: 'Gathering code for review...' });
+          try {
+            const toolResult = await handleWithTools(finalQuery, codebasePath, { stream: false });
+            steps.push({ agent: 'tool', action: 'context_gather' });
+            reviewContext = toolResult || '';
+          } catch {
+            reviewContext = '';
+          }
+        }
+
+        if (onProgress) onProgress({ step: 'generating', message: 'MedPsy diagnostic review...' });
+        response = await deepReview(finalQuery, reviewContext, streamOpts);
+        steps.push({ agent: 'review', action: 'deep_review' });
+        break;
+      }
+
       case 'search_code': {
-        // Search: RAG first, tool agent fallback, then Code for explanation
         const chunks = await ragSearchWithRerank(finalQuery);
         if (chunks.length > 0) {
           const context = formatContext(chunks);
@@ -204,7 +228,6 @@ export async function handleQuery(query, options = {}) {
           response = await generateDocs(finalQuery, context, streamOpts);
           steps.push({ agent: 'doc', action: 'generate' });
         } else {
-          // Use tool agent to read files, then doc agent to document
           if (onProgress) onProgress({ step: 'tool_read', message: 'Reading files...' });
           const toolResult = await handleWithTools(`Read the relevant files for: ${finalQuery}`, codebasePath, { stream: false });
           steps.push({ agent: 'tool', action: 'read_for_docs' });
@@ -240,7 +263,6 @@ export async function handleQuery(query, options = {}) {
   };
 }
 
-// Extract file paths from RAG chunks
 function extractFilePaths(chunks) {
   const paths = new Set();
   for (const chunk of chunks) {

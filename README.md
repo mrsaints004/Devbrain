@@ -2,10 +2,11 @@
 
 **The AI That Reviews Your Code Before You Push** — Proactive bug detection, security scanning, and code intelligence that runs 100% on your device. Zero cloud. Zero API bills. Zero data leaks.
 
-> **Track:** General Purpose (16 GB RAM, Apple M2 Pro)
+> **Tracks:** General Purpose + Psy Models (16 GB RAM, Apple M2 Pro)
 > **License:** Apache 2.0
 > **Cloud Dependencies:** Zero. Fully air-gapped capable after first model download.
 > **QVAC SDK:** All inference, embeddings, RAG, multimodal, TTS, STT, P2P, and fine-tuning powered by `@qvac/sdk`
+> **Psy Models:** MedPsy 4B used for diagnostic code review (deep_review agent)
 
 ---
 
@@ -32,7 +33,8 @@ Cloud-based code assistants require you to send your proprietary code to remote 
 | Feature | Description | QVAC API |
 |---|---|---|
 | Proactive Code Smell Detection | Auto-analyzes files on save, surfaces bugs/security issues in real-time | `qvac.completion()` |
-| Multi-Agent Pipeline | Router → RAG → Code/Tool/Doc/Vision agents with chaining | `qvac.completion()` |
+| Multi-Agent Pipeline | Router → RAG → Code/Tool/Doc/Vision/Review agents with chaining | `qvac.completion()` |
+| MedPsy Deep Review | Diagnostic-style code quality assessment using MedPsy 4B (Psy Model) | `qvac.completion()` |
 | Code-Aware RAG with Re-ranking | Intelligent chunking + LLM re-ranking for precision | `qvac.ragIngest()`, `qvac.ragSearch()`, `qvac.embed()` |
 | Multimodal Analysis | Analyze screenshots, architecture diagrams, code photos | `qvac.completion()` + image content |
 | Voice Input/Output | STT via Whisper, TTS via Supertonic | `qvac.transcribe()`, `qvac.textToSpeech()` |
@@ -55,13 +57,14 @@ User Query (text / image / voice)          File Save Event
          ↓                                       ↓
     STT Agent (Whisper)                    Re-index changed files (RAG)
          ↓                                       ↓
-    Router Agent (8 intents)               Smell Agent (LLM)
+    Router Agent (9 intents)               Smell Agent (LLM)
          ↓                                       ↓
     Orchestrator (multi-agent chaining)    SSE Push Alert → Code Health Score
     ├── RAG Agent (search + LLM re-rank)
     ├── Code Agent (analyze/explain/bug/refactor)
     ├── Tool Agent (file/git/tree ops)
     │   └── Results fed back to Code Agent ← chaining
+    ├── Review Agent (MedPsy diagnostic review)
     ├── Doc Agent (documentation gen)
     └── Vision Agent (Qwen3-VL multimodal)
          ↓
@@ -104,12 +107,13 @@ For a "find bugs" query:
 | Role | Model | Size |
 |---|---|---|
 | Primary LLM | Qwen3 4B Instruct Q4_K_M | ~2.6 GB |
+| Deep Review (Psy) | MedPsy 4B Q4_K_M | ~2.72 GB |
 | Embeddings | GTE-Large FP16 | ~0.7 GB |
 | Vision | Qwen3-VL 2B Multimodal Q4_K | ~1.5 GB |
 | STT | Whisper Base Q0F16 | ~150 MB |
 | TTS | Supertonic (component-based) | ~500 MB |
 
-**Peak memory:** ~5.8 GB (fits in 16 GB RAM)
+**Peak memory:** ~6.5 GB (fits in 16 GB RAM)
 
 ---
 
@@ -119,7 +123,7 @@ For a "find bugs" query:
 git clone https://github.com/AYANscyy2/devbrain.git
 cd devbrain
 npm install
-npm test                                    # Run test suite (84 tests)
+npm test                                    # Run test suite (93+ tests)
 node src/index.js --path ./your-project --watch
 open http://localhost:3000
 ```
@@ -161,6 +165,7 @@ node src/finetune/train.js --path ./your-project --epochs 3
 | GET | `/api/events` | SSE stream of file changes + code smell alerts |
 | POST | `/api/stt` | Speech-to-text transcription (Whisper) |
 | POST | `/api/tts` | Text-to-speech synthesis (Supertonic) |
+| GET | `/api/benchmark` | Run benchmark (5 queries) with cloud comparison |
 | POST | `/api/models/load` | Reload all models |
 
 ---
@@ -176,9 +181,11 @@ DevBrain/
 │   ├── logger.js               # Structured inference logging + session stats
 │   ├── agents/
 │   │   ├── orchestrator.js     # Multi-agent pipeline with chaining
-│   │   ├── router.js           # Intent classifier (8 intents)
+│   │   ├── router.js           # Intent classifier (9 intents)
 │   │   ├── rag.js              # Vector search + LLM re-ranking
 │   │   ├── code.js             # Code analysis (explain, bug, refactor)
+│   │   ├── review.js           # MedPsy deep review agent (Psy Model)
+│   │   ├── benchmark.js        # Performance benchmark runner
 │   │   ├── tool.js             # Tool-calling agent (4 tools)
 │   │   ├── doc.js              # Documentation generator
 │   │   ├── vision.js           # Multimodal + TTS/STT agent
@@ -206,14 +213,16 @@ DevBrain/
 │   ├── style.css               # Dark theme with agent-colored pipeline
 │   └── app.js                  # Frontend (streaming, multimodal, voice)
 ├── test/
-│   ├── router.test.js          # Intent classification tests (33 tests)
+│   ├── router.test.js          # Intent classification tests (42 tests)
 │   ├── chunker.test.js         # Code chunking tests (16 tests)
 │   ├── security.test.js        # Security guard tests (30 tests)
 │   └── rag.test.js             # RAG formatting tests (5 tests)
 ├── logs/                       # Inference logs (auto-generated)
-├── remote-apis.json            # API disclosure (none — fully offline)
+├── remote-apis.json            # API disclosure (MedPsy one-time download noted)
+├── hardware-specs.json         # Structured hardware specs (JSON)
 ├── apis.json                   # QVAC SDK usage disclosure
 ├── HARDWARE.md                 # Hardware specs + reproduction instructions
+├── SUBMISSION.md               # Submission checklist + demo flow
 ├── package.json
 └── LICENSE                     # Apache 2.0
 ```
@@ -234,7 +243,7 @@ DevBrain/
 ## Testing
 
 ```bash
-npm test          # Run all 84 tests
+npm test          # Run all 93+ tests
 npm run test:router    # Intent classification (33 tests)
 npm run test:chunker   # Code chunking (16 tests)
 npm run test:security  # Security guard (30 tests)

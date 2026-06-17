@@ -8,7 +8,6 @@ import * as fileSearch from '../tools/file-search.js';
 import * as gitInfo from '../tools/git-info.js';
 import * as tree from '../tools/tree.js';
 
-// QVAC tools use Zod schemas + handler functions
 function buildTools(codebasePath) {
   return [
     {
@@ -115,10 +114,8 @@ export async function handleWithTools(query, codebasePath, options = {}) {
     });
   }
 
-  // Filter output BEFORE streaming
   answer = filterOutput(answer);
 
-  // Simulate streaming to callback
   if (stream && onToken && answer) {
     const words = answer.split(' ');
     for (const word of words) {

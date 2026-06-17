@@ -21,7 +21,7 @@ const MODEL_CONFIGS = {
   },
   vision: {
     modelSrc: qvac.QWEN3VL_2B_MULTIMODAL_Q4_K,
-    modelType: 'llm',  // Vision models load as LLM with projectionModelSrc
+    modelType: 'llm',
     label: 'Qwen3-VL 2B',
     modelConfig: {
       ctx_size: 4096,
@@ -141,11 +141,10 @@ export async function loadAllModels() {
   const embId = await loadModel('embeddings');
   const llmId = await loadModel('llm');
 
-  // Load MedPsy model for deep review agent (Psy Models track)
   let medpsyId = null;
   try {
     medpsyId = await loadModel('medpsy');
-    console.log('  [core] MedPsy 4B loaded for deep review.');
+    console.log('  [core] MedPsy 4B loaded.');
   } catch (err) {
     console.log(`  [core] MedPsy skipped: ${err.message}`);
   }
@@ -153,10 +152,6 @@ export async function loadAllModels() {
   return { llmId, embId, medpsyId };
 }
 
-/**
- * Load optional models (vision, STT, TTS) in the background.
- * These are non-blocking — the server is already running.
- */
 async function loadOptionalModels() {
   for (const type of ['vision', 'stt', 'tts']) {
     try {

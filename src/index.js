@@ -30,16 +30,14 @@ async function main() {
     process.exit(1);
   }
 
-  // Load core models (LLM + embeddings) — these are required
-  console.log('  Loading core models...');
+  console.log('  Loading models...');
   try {
     await loadAllModels();
-    console.log('  Core models loaded (vision/STT/TTS loading in background).');
+    console.log('  Models loaded.');
   } catch (err) {
     console.error(`  Model loading failed: ${err.message}`);
   }
 
-  // Index codebase
   console.log(`  Indexing: ${codebasePath}`);
   try {
     const indexResult = await indexCodebase(codebasePath, workspace);
@@ -48,7 +46,6 @@ async function main() {
     console.error(`  Indexing failed: ${err.message}`);
   }
 
-  // HTTP server — start immediately, don't wait for optional models
   const app = createServer({ codebasePath, workspace });
   const httpServer = createHttpServer(app);
   await new Promise((resolve, reject) => {
@@ -57,7 +54,6 @@ async function main() {
   });
   console.log(`  Server: http://localhost:${port}`);
 
-  // File watcher
   if (watchMode) {
     startWatcher(codebasePath, workspace);
     onFileChange((change) => {
@@ -66,7 +62,6 @@ async function main() {
     console.log('  Watcher: active (code smell detection enabled)');
   }
 
-  // P2P
   if (!skipP2P) {
     startProvider({ workspace, codebasePath }).catch((err) => {
       console.error(`  P2P error: ${err.message}`);

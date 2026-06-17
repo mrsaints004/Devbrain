@@ -50,7 +50,6 @@ export function sanitizeInput(input) {
     threats.push('excessive_length');
   }
 
-  // Check for encoded characters that might bypass filters
   if (/&#x?[0-9a-f]+;/i.test(input) || /%[0-9a-f]{2}/i.test(input)) {
     threats.push('encoded_characters');
   }
@@ -63,17 +62,14 @@ export function sanitizeInput(input) {
     });
   }
 
-  // Sanitize: strip control characters but preserve the query
   const sanitized = input
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Remove control chars
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
     .trim();
 
   return {
     safe: threats.length === 0,
     sanitized,
     threats,
-    // Allow processing even with threats (log but don't block)
-    // The system prompt hardening handles the actual defense
     processable: sanitized.length > 0,
   };
 }

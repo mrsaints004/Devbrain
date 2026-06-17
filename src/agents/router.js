@@ -8,6 +8,7 @@ const INTENTS = [
   'explain_code',
   'find_bug',
   'security_audit',
+  'deep_review',
   'generate_docs',
   'refactor',
   'analyze_image',
@@ -20,6 +21,7 @@ Given a user query about a codebase, classify it into exactly one of these inten
 - explain_code: user wants to understand how code works
 - find_bug: user wants to identify bugs, issues, or potential problems
 - security_audit: user specifically wants a security review, vulnerability assessment, or safety analysis
+- deep_review: user wants a thorough, in-depth code review, diagnostic analysis, or comprehensive quality assessment
 - generate_docs: user wants documentation generated for code
 - refactor: user wants code improvement suggestions or refactoring
 - analyze_image: user mentions an image, screenshot, diagram, or visual content
@@ -31,9 +33,9 @@ export async function classifyIntent(query, hasImage = false) {
   // Fast path: if image is attached, route to analyze_image
   if (hasImage) return 'analyze_image';
 
-  // Keyword-based fast paths for reliable classification (order matters!)
   const q = query.toLowerCase();
   if (/\b(security\s+(?:audit|review|scan|check|assess)|vulnerability\s+(?:scan|assess|check)|penetration|pen\s?test|safety\s+(?:analysis|review|check)|threat\s+model)/i.test(q)) return 'security_audit';
+  if (/\b(deep\s+review|code\s+review|thorough\s+(?:analysis|review)|diagnos(?:e|tic|is)|comprehensive\s+review|quality\s+(?:review|assessment|check|audit))\b/.test(q)) return 'deep_review';
   if (/\b(bug|bugs|err?ors?|issue|issues|problem|problems|wrong|broken|fix|debug|vulnerability|vulnerabilities|lint)\b/.test(q)) return 'find_bug';
   if (/\b(refactor|improve|clean\s?up|optimize|simplify|performance)\b/.test(q)) return 'refactor';
   if (/\b(explain|how\s+does|what\s+does|walk\s+me\s+through|understand|what\s+is)\b/.test(q)) return 'explain_code';
@@ -74,18 +76,14 @@ export async function classifyIntent(query, hasImage = false) {
     agent: 'router',
   });
 
-  // Strip <think>...</think> tags from Qwen3's response
   const cleaned = responseText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
-  // Try exact match on the cleaned output first
   let intent = INTENTS.find((i) => cleaned === i);
 
-  // If no exact match, check if the cleaned output contains an intent
   if (!intent) {
     intent = INTENTS.find((i) => cleaned.includes(i));
   }
 
-  // Last resort: check the full response (but prioritize earlier intents)
   if (!intent) {
     intent = INTENTS.find((i) => responseText.includes(i)) || 'general_question';
   }

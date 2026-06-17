@@ -9,15 +9,14 @@
 </head>
 <body>
   <div class="layout">
-    <!-- Sidebar -->
     <aside class="sidebar">
       <div class="logo">
         <h1>DevBrain</h1>
         <span class="subtitle">Proactive Code Intelligence</span>
         <span class="badge">QVAC SDK</span>
+        <span class="badge badge-psy">Psy Models</span>
       </div>
 
-      <!-- Code Health Score -->
       <div class="health-panel">
         <div class="health-header">
           <h3>Code Health</h3>
@@ -50,7 +49,6 @@
         </div>
       </div>
 
-      <!-- Performance Dashboard -->
       <div class="dashboard">
         <h3>Performance</h3>
         <div class="metrics">
@@ -73,7 +71,6 @@
         </div>
       </div>
 
-      <!-- Status Panel -->
       <div class="status-panel">
         <h3>Models</h3>
         <div id="model-list" class="model-list">
@@ -81,7 +78,6 @@
         </div>
       </div>
 
-      <!-- Index Status -->
       <div class="status-panel">
         <h3>Codebase Index</h3>
         <div class="status-item">
@@ -98,7 +94,6 @@
         </div>
       </div>
 
-      <!-- P2P Status -->
       <div class="status-panel">
         <h3>P2P Network</h3>
         <div class="status-item">
@@ -115,18 +110,38 @@
         </div>
       </div>
 
-      <!-- Actions -->
       <div class="actions">
         <button id="reindex-btn" class="btn-secondary">Re-index</button>
         <button id="logs-btn" class="btn-secondary">Logs</button>
       </div>
       <div class="actions">
-        <button id="clear-btn" class="btn-secondary">Clear Chat</button>
+        <button id="benchmark-btn" class="btn-secondary">Benchmark</button>
         <button id="export-btn" class="btn-secondary">Export</button>
+      </div>
+      <div class="actions">
+        <button id="clear-btn" class="btn-secondary">Clear Chat</button>
+      </div>
+
+      <div class="status-panel" id="lan-panel">
+        <h3>Access from Phone</h3>
+        <div class="status-item">
+          <span class="label">LAN URL</span>
+          <span id="lan-url" class="value">--</span>
+        </div>
+        <div id="qr-container" class="qr-container"></div>
+      </div>
+
+      <div class="powered-by">
+        Powered by <strong>QVAC SDK</strong> + <strong>MedPsy</strong>
       </div>
     </aside>
 
-    <!-- Main Chat Area -->
+    <button id="mobile-nav-toggle" class="mobile-nav-toggle hidden" aria-label="Toggle sidebar">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+
     <main class="chat-area">
       <div id="messages" class="messages">
         <div class="message system welcome">
@@ -136,6 +151,7 @@
             <div class="welcome-features">
               <span class="feature-chip">Proactive Bug Detection</span>
               <span class="feature-chip">Multi-Agent RAG</span>
+              <span class="feature-chip chip-psy">MedPsy Deep Review</span>
               <span class="feature-chip">Multimodal</span>
               <span class="feature-chip">P2P Delegation</span>
               <span class="feature-chip">Voice I/O</span>
@@ -146,13 +162,19 @@
         </div>
       </div>
 
-      <!-- File change notifications -->
       <div id="file-changes" class="file-changes hidden">
         <span class="change-icon">&#9679;</span>
         <span id="change-text">Files changed</span>
       </div>
 
-      <!-- Input Area -->
+      <div class="quick-actions">
+        <button class="quick-btn" data-query="Find bugs in the codebase">Find Bugs</button>
+        <button class="quick-btn" data-query="Do a deep review of the code quality">Deep Review</button>
+        <button class="quick-btn" data-query="Run a security audit on the codebase">Security Audit</button>
+        <button class="quick-btn" data-query="Explain the architecture of this project">Explain Architecture</button>
+        <button class="quick-btn" data-query="Generate documentation for the main modules">Generate Docs</button>
+      </div>
+
       <div class="input-area">
         <div class="input-wrapper">
           <textarea id="query-input" placeholder="Ask about your codebase... (drop images here)" rows="1"></textarea>
@@ -182,7 +204,6 @@
     </main>
   </div>
 
-  <!-- Logs Modal -->
   <div id="logs-modal" class="modal hidden">
     <div class="modal-content">
       <div class="modal-header">
@@ -193,7 +214,18 @@
     </div>
   </div>
 
-  <!-- Hidden file input -->
+  <div id="benchmark-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Benchmark Results</h2>
+        <button id="close-benchmark" class="btn-close">&times;</button>
+      </div>
+      <div id="benchmark-content" class="benchmark-body">
+        <p class="benchmark-placeholder">Click "Run Benchmark" to start.</p>
+      </div>
+    </div>
+  </div>
+
   <input type="file" id="image-input" accept="image/*" class="hidden">
 
   <script src="app.js"></script>

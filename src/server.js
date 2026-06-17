@@ -7,6 +7,7 @@ import { getEntries, getSessionStats } from './logger.js';
 import { getProviderStatus } from './p2p/provider.js';
 import { getWatcherStatus, onCodeSmell } from './watcher/monitor.js';
 import { synthesizeSpeech, transcribeAudio } from './agents/vision.js';
+import { runBenchmark } from './agents/benchmark.js';
 
 export function createServer({ codebasePath, workspace }) {
   const app = express();
@@ -14,7 +15,6 @@ export function createServer({ codebasePath, workspace }) {
   app.use(express.json({ limit: '20mb' })); // Allow image uploads
   app.use(express.static(join(import.meta.dirname, '..', 'web')));
 
-  // Simple request queue to prevent model-busy rejections
   let queryLock = Promise.resolve();
   function withLock(fn) {
     const prev = queryLock;
@@ -23,9 +23,7 @@ export function createServer({ codebasePath, workspace }) {
     return prev.then(fn).finally(resolve);
   }
 
-  // === QUERY ENDPOINTS ===
-
-  // Standard query (blocking)
+  // Query (blocking)
   app.post('/api/query', async (req, res) => {
     const { query, imageData, imageMimeType } = req.body;
     if (!query || typeof query !== 'string') {
@@ -47,14 +45,14 @@ export function createServer({ codebasePath, workspace }) {
     });
   });
 
-  // Streaming query via Server-Sent Events
+  // Query (SSE streaming)
   app.post('/api/query/stream', async (req, res) => {
     const { query, imageData, imageMimeType } = req.body;
     if (!query || typeof query !== 'string') {
       return res.status(400).json({ error: 'Missing "query" field' });
     }
 
-    // Handle /index command from chat
+    // /index command
     const indexMatch = query.match(/^\/index\s+(.+)$/);
     if (indexMatch) {
       const targetPath = indexMatch[1].trim();
@@ -80,7 +78,7 @@ export function createServer({ codebasePath, workspace }) {
       return;
     }
 
-    // Set up SSE
+    // SSE
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -106,7 +104,6 @@ export function createServer({ codebasePath, workspace }) {
           },
         });
 
-        // Send final result with metadata
         res.write(`data: ${JSON.stringify({
           type: 'done',
           intent: result.intent,
@@ -122,13 +119,10 @@ export function createServer({ codebasePath, workspace }) {
     res.end();
   });
 
-  // === INDEX ENDPOINTS ===
-
   app.post('/api/index', async (req, res) => {
     const targetPath = req.body.path || codebasePath;
     try {
       const result = await indexCodebase(targetPath, workspace);
-      // Update the active codebase path for tool agent
       if (req.body.path) {
         app.activePath = req.body.path;
       }
@@ -138,9 +132,7 @@ export function createServer({ codebasePath, workspace }) {
     }
   });
 
-  // === STATUS ENDPOINTS ===
-
-  // Code health tracking
+  // Status + code health
   const codeHealth = { critical: 0, warning: 0, info: 0, clean: 0 };
 
   app.get('/api/status', (req, res) => {
@@ -154,8 +146,6 @@ export function createServer({ codebasePath, workspace }) {
     });
   });
 
-  // === MODEL ENDPOINTS ===
-
   app.post('/api/models/load', async (req, res) => {
     try {
       const result = await loadAllModels();
@@ -164,8 +154,6 @@ export function createServer({ codebasePath, workspace }) {
       res.status(500).json({ error: err.message });
     }
   });
-
-  // === STT ENDPOINT ===
 
   app.post('/api/stt', async (req, res) => {
     const { audio } = req.body; // base64-encoded audio
@@ -180,8 +168,6 @@ export function createServer({ codebasePath, workspace }) {
       res.status(500).json({ error: err.message });
     }
   });
-
-  // === TTS ENDPOINT ===
 
   app.post('/api/tts', async (req, res) => {
     const { text } = req.body;
@@ -200,7 +186,16 @@ export function createServer({ codebasePath, workspace }) {
     }
   });
 
-  // === LOGS ENDPOINTS ===
+  app.get('/api/benchmark', async (req, res) => {
+    await withLock(async () => {
+      try {
+        const result = await runBenchmark();
+        res.json(result);
+      } catch (err) {
+        res.status(500).json({ error: err.message });
+      }
+    });
+  });
 
   app.get('/api/logs', (req, res) => {
     const entries = getEntries();
@@ -211,8 +206,6 @@ export function createServer({ codebasePath, workspace }) {
   app.get('/api/stats', (req, res) => {
     res.json(getSessionStats());
   });
-
-  // === FILE CHANGE EVENTS (SSE) ===
 
   const fileChangeClients = new Set();
 
@@ -227,7 +220,6 @@ export function createServer({ codebasePath, workspace }) {
     req.on('close', () => fileChangeClients.delete(res));
   });
 
-  // Broadcast file changes to connected clients
   app.broadcastFileChange = (change) => {
     const data = JSON.stringify(change);
     for (const client of fileChangeClients) {
@@ -235,17 +227,14 @@ export function createServer({ codebasePath, workspace }) {
     }
   };
 
-  // Broadcast code smell alerts to connected clients + track health
   onCodeSmell((smell) => {
     if (smell.clean) {
-      // File was analyzed and found clean
       codeHealth.clean++;
       const data = JSON.stringify({ type: 'smell_clean', filePath: smell.filePath });
       for (const client of fileChangeClients) {
         client.write(`data: ${data}\n\n`);
       }
     } else {
-      // Issues found
       const issueText = (smell.issues || '').toUpperCase();
       if (issueText.includes('CRITICAL')) codeHealth.critical++;
       else if (issueText.includes('WARNING')) codeHealth.warning++;
@@ -257,8 +246,6 @@ export function createServer({ codebasePath, workspace }) {
       console.log(`  [SmellDetect] Issues in ${smell.filePath}`);
     }
   });
-
-  // === SPA FALLBACK ===
 
   const indexHtml = join(import.meta.dirname, '..', 'web', 'index.html');
   app.use((req, res, next) => {

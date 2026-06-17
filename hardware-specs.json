@@ -1,0 +1,57 @@
+{
+  "project": "DevBrain",
+  "version": "2.0.0",
+  "hardware": {
+    "cpu": "Apple M2 Pro (10-core CPU, 6 performance + 4 efficiency)",
+    "gpu": "Apple M2 Pro (16-core GPU, integrated)",
+    "ram": "16 GB unified memory (shared CPU/GPU)",
+    "storage": "512 GB SSD (NVMe)",
+    "os": "macOS 14+ (Sonoma)",
+    "architecture": "arm64 (Apple Silicon)"
+  },
+  "runtime": {
+    "node": "22+",
+    "qvac_sdk": "0.11.x"
+  },
+  "models": [
+    {
+      "name": "Qwen3 4B Instruct Q4_K_M",
+      "role": "Primary LLM",
+      "size_gb": 2.6,
+      "source": "QVAC SDK built-in"
+    },
+    {
+      "name": "MedPsy 4B Q4_K_M",
+      "role": "Deep Review / Diagnostic Reasoning (Psy Model)",
+      "size_gb": 2.72,
+      "source": "https://huggingface.co/qvac/MedPsy-4B-GGUF/resolve/main/MedPsy-4B-Q4_K_M.gguf"
+    },
+    {
+      "name": "GTE-Large FP16",
+      "role": "Embeddings (RAG)",
+      "size_gb": 0.7,
+      "source": "QVAC SDK built-in"
+    },
+    {
+      "name": "Qwen3-VL 2B Multimodal Q4_K",
+      "role": "Vision / Image Analysis",
+      "size_gb": 1.5,
+      "source": "QVAC SDK built-in"
+    },
+    {
+      "name": "Whisper Base Q0F16",
+      "role": "Speech-to-Text",
+      "size_gb": 0.15,
+      "source": "QVAC SDK built-in"
+    },
+    {
+      "name": "Supertonic2 TTS",
+      "role": "Text-to-Speech",
+      "size_gb": 0.5,
+      "source": "QVAC SDK built-in"
+    }
+  ],
+  "peak_memory_gb": 6.5,
+  "network_required": false,
+  "notes": "All models fit within 16 GB unified memory. MedPsy is downloaded once from HuggingFace on first load, then cached locally. No network needed at runtime."
+}

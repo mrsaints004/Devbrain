@@ -14,13 +14,17 @@ const removeImage = document.getElementById('remove-image');
 const micBtn = document.getElementById('mic-btn');
 const clearBtn = document.getElementById('clear-btn');
 const exportBtn = document.getElementById('export-btn');
+const benchmarkBtn = document.getElementById('benchmark-btn');
+const benchmarkModal = document.getElementById('benchmark-modal');
+const closeBenchmark = document.getElementById('close-benchmark');
+const benchmarkContent = document.getElementById('benchmark-content');
+const mobileNavToggle = document.getElementById('mobile-nav-toggle');
 
 let queryCount = 0;
 let attachedImage = null;
 let isProcessing = false;
 let conversationHistory = [];
 
-// === CODE HEALTH TRACKING ===
 const codeHealth = { critical: 0, warning: 0, info: 0, clean: 0, issues: [] };
 
 function updateHealthDisplay() {
@@ -42,7 +46,6 @@ function updateHealthDisplay() {
   document.getElementById('clean-count').textContent = codeHealth.clean;
 }
 
-// === CONFIGURE MARKED ===
 if (typeof marked !== 'undefined') {
   marked.setOptions({
     gfm: true,
@@ -51,14 +54,11 @@ if (typeof marked !== 'undefined') {
   });
 }
 
-// === MARKDOWN RENDERING (using marked.js) ===
 function renderMarkdown(text) {
   if (!text) return '';
   try {
-    // Use marked library for proper markdown rendering
     if (typeof marked !== 'undefined') {
       let html = marked.parse(text);
-      // Add copy buttons to code blocks
       html = html.replace(/<pre><code(?:\s+class="language-(\w+)")?>([\s\S]*?)<\/code><\/pre>/g, (_, lang, code) => {
         const id = 'code-' + Math.random().toString(36).slice(2, 8);
         return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-lang">${lang || 'code'}</span><button class="copy-btn" onclick="copyCode('${id}')">Copy</button></div><pre class="code-block" id="${id}"><code>${code}</code></pre></div>`;
@@ -66,7 +66,6 @@ function renderMarkdown(text) {
       return html;
     }
   } catch { /* fallback below */ }
-  // Fallback: basic escaping
   return escapeHtml(text).replace(/\n/g, '<br>');
 }
 
@@ -89,7 +88,6 @@ function copyCode(id) {
 }
 window.copyCode = copyCode;
 
-// === LOAD CONVERSATION FROM STORAGE ===
 function loadHistory() {
   try {
     const saved = localStorage.getItem('devbrain-history');
@@ -109,7 +107,6 @@ function saveHistory() {
   } catch { /* ignore */ }
 }
 
-// TTS: Read aloud using on-device TTS
 async function speakText(btn) {
   const text = btn.getAttribute('data-text');
   if (!text) return;
@@ -144,14 +141,12 @@ function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-// === MESSAGE RENDERING ===
 function addMessageToDOM(type, content, meta = null, save = true) {
   const div = document.createElement('div');
   div.className = `message ${type}`;
 
   let html = '';
 
-  // Agent pipeline visualization (animated)
   if (meta?.steps?.length) {
     html += `<div class="pipeline">`;
     for (let i = 0; i < meta.steps.length; i++) {
@@ -164,7 +159,6 @@ function addMessageToDOM(type, content, meta = null, save = true) {
     html += `</div>`;
   }
 
-  // Content
   if (type === 'assistant') {
     html += `<div class="content markdown">${renderMarkdown(content)}</div>`;
     const safeText = escapeHtml(content.slice(0, 500)).replace(/"/g, '&quot;');
@@ -175,7 +169,6 @@ function addMessageToDOM(type, content, meta = null, save = true) {
     html += `<div class="content">${escapeHtml(content)}</div>`;
   }
 
-  // Metadata bar
   if (meta) {
     html += `<div class="meta">`;
     if (meta.intent) html += `<span class="tag intent">${meta.intent}</span>`;
@@ -217,7 +210,6 @@ function createStreamingMessage() {
   return div;
 }
 
-// === STREAMING QUERY ===
 async function sendStreamingQuery() {
   const query = queryInput.value.trim();
   if (!query) return;
@@ -293,7 +285,6 @@ async function sendStreamingQuery() {
             const progressText = progressEl.querySelector('.progress-text');
             progressText.textContent = event.message || event.step;
 
-            // Build animated pipeline
             if (event.step === 'router_done' && event.intent) {
               pipelineSteps.push({ agent: 'router', label: event.intent });
               renderPipeline(pipelineEl, pipelineSteps, true);
@@ -307,7 +298,9 @@ async function sendStreamingQuery() {
               pipelineSteps.push({ agent: 'tool', label: event.message });
               renderPipeline(pipelineEl, pipelineSteps, true);
             } else if (event.step === 'generating') {
-              pipelineSteps.push({ agent: 'llm', label: 'generating' });
+              const label = (event.message || '').includes('MedPsy') ? 'MedPsy review' : 'generating';
+              const agent = (event.message || '').includes('MedPsy') ? 'review' : 'llm';
+              pipelineSteps.push({ agent, label });
               renderPipeline(pipelineEl, pipelineSteps, true);
             }
             scrollToBottom();
@@ -373,7 +366,6 @@ async function sendStreamingQuery() {
   }
 }
 
-// Render animated pipeline
 function renderPipeline(el, steps, animating) {
   let html = '';
   for (let i = 0; i < steps.length; i++) {
@@ -387,7 +379,6 @@ function renderPipeline(el, steps, animating) {
   el.innerHTML = html;
 }
 
-// === IMAGE HANDLING ===
 function clearImage() {
   attachedImage = null;
   imagePreview.classList.add('hidden');
@@ -413,7 +404,6 @@ imageInput.addEventListener('change', (e) => {
 });
 removeImage.addEventListener('click', clearImage);
 
-// Drag and drop
 const chatArea = document.querySelector('.chat-area');
 chatArea.addEventListener('dragover', (e) => { e.preventDefault(); chatArea.classList.add('dragover'); });
 chatArea.addEventListener('dragleave', () => chatArea.classList.remove('dragover'));
@@ -424,7 +414,6 @@ chatArea.addEventListener('drop', (e) => {
   if (file) handleImageFile(file);
 });
 
-// === VOICE INPUT ===
 let mediaRecorder = null;
 let audioChunks = [];
 
@@ -478,7 +467,6 @@ micBtn.addEventListener('click', async () => {
   }
 });
 
-// === CLEAR CHAT ===
 if (clearBtn) {
   clearBtn.addEventListener('click', () => {
     messagesEl.innerHTML = '';
@@ -491,7 +479,6 @@ if (clearBtn) {
   });
 }
 
-// === EXPORT CONVERSATION ===
 if (exportBtn) {
   exportBtn.addEventListener('click', () => {
     if (conversationHistory.length === 0) {
@@ -520,7 +507,6 @@ if (exportBtn) {
   });
 }
 
-// === EVENT LISTENERS ===
 sendBtn.addEventListener('click', sendStreamingQuery);
 
 queryInput.addEventListener('keydown', (e) => {
@@ -535,7 +521,6 @@ queryInput.addEventListener('input', () => {
   queryInput.style.height = Math.min(queryInput.scrollHeight, 150) + 'px';
 });
 
-// Paste image from clipboard
 queryInput.addEventListener('paste', (e) => {
   const items = e.clipboardData?.items;
   if (!items) return;
@@ -583,7 +568,6 @@ logsBtn.addEventListener('click', async () => {
 closeLogs.addEventListener('click', () => logsModal.classList.add('hidden'));
 logsModal.addEventListener('click', (e) => { if (e.target === logsModal) logsModal.classList.add('hidden'); });
 
-// === STATUS POLLING ===
 function formatUptime(ms) {
   const s = Math.floor(ms / 1000);
   if (s < 60) return `${s}s`;
@@ -649,7 +633,6 @@ async function updateStatus() {
   }
 }
 
-// === FILE CHANGE EVENTS ===
 const evtSource = new EventSource('/api/events');
 evtSource.onmessage = (e) => {
   try {
@@ -699,7 +682,6 @@ evtSource.onmessage = (e) => {
   }
 };
 
-// === KEYBOARD SHORTCUTS ===
 document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault();
@@ -709,6 +691,147 @@ document.addEventListener('keydown', (e) => {
     logsModal.classList.add('hidden');
   }
 });
+
+document.querySelectorAll('.quick-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const q = btn.getAttribute('data-query');
+    if (q && !isProcessing) {
+      queryInput.value = q;
+      sendStreamingQuery();
+    }
+  });
+});
+
+if (benchmarkBtn) {
+  benchmarkBtn.addEventListener('click', () => {
+    benchmarkContent.innerHTML = `
+      <div style="text-align:center; padding:30px;">
+        <div class="spinner" style="width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px;"></div>
+        <p>Running 5 benchmark queries...</p>
+      </div>`;
+    benchmarkModal.classList.remove('hidden');
+
+    fetch('/api/benchmark')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) {
+          benchmarkContent.innerHTML = `<p class="error">${escapeHtml(data.error)}</p>`;
+          return;
+        }
+        renderBenchmarkResults(data);
+      })
+      .catch((err) => {
+        benchmarkContent.innerHTML = `<p class="error">Benchmark failed: ${escapeHtml(err.message)}</p>`;
+      });
+  });
+}
+
+if (closeBenchmark) {
+  closeBenchmark.addEventListener('click', () => benchmarkModal.classList.add('hidden'));
+  benchmarkModal.addEventListener('click', (e) => { if (e.target === benchmarkModal) benchmarkModal.classList.add('hidden'); });
+}
+
+function renderBenchmarkResults(data) {
+  const s = data.summary;
+  const c = data.comparison;
+  let html = `
+    <div class="benchmark-grid">
+      <div class="benchmark-card">
+        <h4>Avg TTFT</h4>
+        <span class="bm-value">${s.avgTtft}ms</span>
+      </div>
+      <div class="benchmark-card">
+        <h4>Avg TPS</h4>
+        <span class="bm-value">${s.avgTps}</span>
+      </div>
+      <div class="benchmark-card">
+        <h4>Avg Latency</h4>
+        <span class="bm-value">${s.avgLatencyMs}ms</span>
+      </div>
+      <div class="benchmark-card">
+        <h4>Queries Run</h4>
+        <span class="bm-value">${data.queriesRun}</span>
+      </div>
+    </div>
+
+    <h3 style="font-size:0.85rem; margin:16px 0 8px;">Query Results</h3>
+    <table class="benchmark-table">
+      <thead><tr><th>Query</th><th>TTFT</th><th>TPS</th><th>Latency</th><th>Tokens</th></tr></thead>
+      <tbody>
+        ${data.results.map((r) => `<tr>
+          <td>${escapeHtml(r.label)}</td>
+          <td>${r.ttft || '--'}ms</td>
+          <td>${r.tps || '--'}</td>
+          <td>${r.durationMs}ms</td>
+          <td>${r.tokensIn}/${r.tokensOut}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+
+    <div class="benchmark-comparison">
+      <div class="comparison-card local">
+        <h4>DevBrain (Local)</h4>
+        <div class="comp-row"><span class="comp-label">Cost</span><span class="comp-value" style="color:var(--success)">${c.local.cost}</span></div>
+        <div class="comp-row"><span class="comp-label">Avg Latency</span><span class="comp-value">${c.local.avgLatencyMs}ms</span></div>
+        <div class="comp-row"><span class="comp-label">Privacy</span><span class="comp-value" style="font-size:0.7rem">${c.local.privacy}</span></div>
+        <div class="comp-row"><span class="comp-label">Models</span><span class="comp-value" style="font-size:0.65rem">${c.local.modelsLoaded.join(', ')}</span></div>
+      </div>
+      <div class="comparison-card cloud">
+        <h4>Cloud API (Estimated)</h4>
+        <div class="comp-row"><span class="comp-label">Cost</span><span class="comp-value" style="color:var(--error)">${c.cloud.estimatedCost}</span></div>
+        <div class="comp-row"><span class="comp-label">Avg Latency</span><span class="comp-value">${c.cloud.avgLatencyMs}ms</span></div>
+        <div class="comp-row"><span class="comp-label">Privacy</span><span class="comp-value" style="font-size:0.7rem">${c.cloud.privacy}</span></div>
+        <div class="comp-row"><span class="comp-label">Note</span><span class="comp-value" style="font-size:0.6rem">${c.cloud.note}</span></div>
+      </div>
+    </div>
+  `;
+  benchmarkContent.innerHTML = html;
+}
+
+if (mobileNavToggle) {
+  mobileNavToggle.addEventListener('click', () => {
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar.classList.contains('mobile-open')) {
+      sidebar.classList.remove('mobile-open');
+      document.querySelector('.sidebar-overlay')?.remove();
+    } else {
+      sidebar.classList.add('mobile-open');
+      const overlay = document.createElement('div');
+      overlay.className = 'sidebar-overlay';
+      overlay.addEventListener('click', () => {
+        sidebar.classList.remove('mobile-open');
+        overlay.remove();
+      });
+      document.body.appendChild(overlay);
+    }
+  });
+
+  function checkMobile() {
+    if (window.innerWidth <= 768) {
+      mobileNavToggle.classList.remove('hidden');
+    } else {
+      mobileNavToggle.classList.add('hidden');
+      document.querySelector('.sidebar')?.classList.remove('mobile-open');
+      document.querySelector('.sidebar-overlay')?.remove();
+    }
+  }
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+}
+
+function displayLanUrl() {
+  const lanEl = document.getElementById('lan-url');
+  if (!lanEl) return;
+  const host = location.hostname;
+  const port = location.port || '3000';
+  if (host !== 'localhost' && host !== '127.0.0.1') {
+    lanEl.textContent = `${host}:${port}`;
+  } else {
+    lanEl.textContent = `localhost:${port}`;
+    lanEl.title = 'Access from phone using your LAN IP';
+  }
+}
+displayLanUrl();
 
 // Initial status + polling + load history
 loadHistory();
