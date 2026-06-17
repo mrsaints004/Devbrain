@@ -2,7 +2,6 @@
 
 **The AI That Reviews Your Code Before You Push** — Proactive bug detection, security scanning, and code intelligence that runs 100% on your device. Zero cloud. Zero API bills. Zero data leaks.
 
-> **Tracks:** General Purpose + Psy Models (16 GB RAM, Apple M2 Pro)
 > **License:** Apache 2.0
 > **Cloud Dependencies:** Zero. Fully air-gapped capable after first model download.
 > **QVAC SDK:** All inference, embeddings, RAG, multimodal, TTS, STT, P2P, and fine-tuning powered by `@qvac/sdk`
@@ -45,6 +44,12 @@ Cloud-based code assistants require you to send your proprietary code to remote 
 | Security Hardening | Prompt injection detection, path traversal prevention, output filtering | — |
 | Performance Metrics | Live tokens/sec, TTFT, query count, uptime | — |
 | Streaming Responses | Token-by-token SSE streaming with animated agent pipeline | — |
+| Stop & Cancel Controls | Abort in-flight queries, stop TTS playback, Escape key shortcuts | — |
+| Quick Action Buttons | One-click preset queries: Find Bugs, Deep Review, Security Audit, etc. | — |
+| Mobile-Responsive UI | Collapsible sidebar, hamburger menu, touch-friendly controls | — |
+| LAN Access Panel | Access DevBrain from phone/tablet via local network URL | — |
+| Conversation Export | Export full chat history as a markdown file | — |
+| Benchmark vs Cloud | Run 5 queries, compare TTFT/TPS/latency against cloud API costs | `qvac.completion()` |
 
 ---
 
@@ -222,7 +227,7 @@ DevBrain/
 ├── hardware-specs.json         # Structured hardware specs (JSON)
 ├── apis.json                   # QVAC SDK usage disclosure
 ├── HARDWARE.md                 # Hardware specs + reproduction instructions
-├── SUBMISSION.md               # Submission checklist + demo flow
+├── SUBMISSION.md               # Submission checklist
 ├── package.json
 └── LICENSE                     # Apache 2.0
 ```
@@ -262,6 +267,12 @@ npm run test:rag       # RAG formatting (5 tests)
 - **Network:** None required (fully offline after first model download)
 
 See [HARDWARE.md](./HARDWARE.md) for full specs and step-by-step reproduction.
+
+---
+
+## Full Documentation
+
+For in-depth technical documentation covering every agent, the RAG pipeline, security internals, P2P architecture, fine-tuning, and frontend details, see **[DOCUMENTATION.md](./DOCUMENTATION.md)**.
 
 ---
 
