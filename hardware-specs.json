@@ -24,7 +24,7 @@
       "name": "MedPsy 4B Q4_K_M",
       "role": "Deep Review / Diagnostic Reasoning (Psy Model)",
       "size_gb": 2.72,
-      "source": "https://huggingface.co/qvac/MedPsy-4B-GGUF/resolve/main/MedPsy-4B-Q4_K_M.gguf"
+      "source": "https://huggingface.co/qvac/MedPsy-4B-GGUF/resolve/main/medpsy-4b-q4_k_m-imat.gguf"
     },
     {
       "name": "GTE-Large FP16",

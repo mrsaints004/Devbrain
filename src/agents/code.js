@@ -28,11 +28,16 @@ export async function analyze(query, context, intent = 'explain_code', options =
   logAgent('code', 'analyze', { intent, contextLength: context.length, streaming: stream });
   const start = Date.now();
 
+  const trimmedContext = (context || '').trim();
+  const userContent = trimmedContext.length > 20
+    ? `## Relevant Code Context\n\n${trimmedContext}\n\n## Question\n\n${query}`
+    : `## Question\n\n${query}\n\nNote: No relevant code was found in the indexed codebase for this query. Provide general guidance based on the question, and suggest the user re-index or ask a more specific question about a file or function.`;
+
   const run = qvac.completion({
     modelId,
     history: [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: `## Relevant Code Context\n\n${context}\n\n## Question\n\n${query}` },
+      { role: 'user', content: userContent },
     ],
     stream: false,
     generationParams: {

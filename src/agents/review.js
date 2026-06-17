@@ -41,13 +41,18 @@ export async function deepReview(query, context, options = {}) {
 
   const start = Date.now();
 
+  const trimmedContext = (context || '').trim();
+  const userContent = trimmedContext.length > 20
+    ? `## Code Under Review\n\n${trimmedContext}\n\n## Review Request\n\n${query}`
+    : `## Review Request\n\n${query}\n\nNote: No code context was found for this review. Please describe what you'd like reviewed, or re-index the codebase to enable code search.`;
+
   const run = qvac.completion({
     modelId,
     history: [
       { role: 'system', content: REVIEW_SYSTEM_PROMPT },
       {
         role: 'user',
-        content: `## Code Under Review\n\n${context}\n\n## Review Request\n\n${query}`,
+        content: userContent,
       },
     ],
     stream: false,

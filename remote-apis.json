@@ -5,7 +5,7 @@
   "remote_apis": [],
   "model_downloads": [
     {
-      "url": "https://huggingface.co/qvac/MedPsy-4B-GGUF/resolve/main/MedPsy-4B-Q4_K_M.gguf",
+      "url": "https://huggingface.co/qvac/MedPsy-4B-GGUF/resolve/main/medpsy-4b-q4_k_m-imat.gguf",
       "purpose": "One-time download of MedPsy-4B GGUF model for deep code review agent (Psy Models track)",
       "when": "First startup only — cached locally after download",
       "runtime_api": false

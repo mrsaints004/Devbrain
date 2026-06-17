@@ -8,8 +8,52 @@ import { analyzeImage, transcribeAudio, synthesizeSpeech } from './vision.js';
 import { logAgent } from '../logger.js';
 import { sanitizeInput } from '../security/guard.js';
 import { hasModel } from '../models.js';
+import * as tree from '../tools/tree.js';
+import * as fileReader from '../tools/file-reader.js';
+import * as fileSearch from '../tools/file-search.js';
 
 const DEFAULT_WORKSPACE = 'devbrain-default';
+
+function gatherDirectContext(codebasePath) {
+  const treeResult = tree.execute({ path: '.', depth: 3 }, codebasePath);
+  const treeStr = treeResult.tree || '';
+
+  const srcFiles = [];
+  const lines = treeStr.split('\n');
+  for (const line of lines) {
+    const match = line.match(/[├└]── (.+\.(?:js|ts|py|rs|go|jsx|tsx|sol))$/);
+    if (match) {
+      const fileName = match[1];
+      const searchResult = fileSearch.execute({ pattern: fileName, maxResults: 3 }, codebasePath);
+      if (searchResult.matches) {
+        for (const m of searchResult.matches) {
+          if (!m.includes('node_modules') && !m.includes('test/')) {
+            srcFiles.push(m);
+          }
+        }
+      }
+    }
+  }
+
+  const uniqueFiles = [...new Set(srcFiles)].slice(0, 6);
+  let context = `## Project Structure\n\n\`\`\`\n${treeStr}\`\`\`\n\n`;
+
+  for (const filePath of uniqueFiles) {
+    try {
+      const result = fileReader.execute({ path: filePath }, codebasePath);
+      if (result.content && !result.error) {
+        const truncated = result.content.length > 1500
+          ? result.content.slice(0, 1500) + '\n// ... (truncated)'
+          : result.content;
+        context += `## ${filePath} (${result.lines?.total || '?'} lines)\n\n\`\`\`\n${truncated}\n\`\`\`\n\n`;
+      }
+    } catch {
+      // skip unreadable
+    }
+  }
+
+  return context;
+}
 
 export async function handleQuery(query, options = {}) {
   const {
@@ -82,21 +126,11 @@ export async function handleQuery(query, options = {}) {
     return reranked;
   }
 
-  async function chainToolThenCode(codeIntent) {
-    if (onProgress) onProgress({ step: 'tool_search', message: 'Tool agent gathering context...' });
-    let toolResult;
-    try {
-      toolResult = await handleWithTools(finalQuery, codebasePath, { stream: false });
-      steps.push({ agent: 'tool', action: 'context_gather' });
-    } catch {
-      toolResult = null;
-    }
-
-    if (onProgress) onProgress({ step: 'generating', message: 'Synthesizing answer...' });
-    const enrichedContext = toolResult
-      ? `## Tool Agent Findings\n\n${toolResult}\n\n`
-      : '';
-    return analyze(finalQuery, enrichedContext, codeIntent, streamOpts);
+  function getDirectContext() {
+    if (onProgress) onProgress({ step: 'tool_search', message: 'Reading project files...' });
+    const context = gatherDirectContext(codebasePath);
+    steps.push({ agent: 'tool', action: 'direct_read' });
+    return context;
   }
 
   async function deepAnalysis(codeIntent) {
@@ -133,7 +167,9 @@ export async function handleQuery(query, options = {}) {
       response = await analyze(finalQuery, context, codeIntent, streamOpts);
       steps.push({ agent: 'code', action: codeIntent });
     } else {
-      response = await chainToolThenCode(codeIntent);
+      const directContext = getDirectContext();
+      if (onProgress) onProgress({ step: 'generating', message: 'Synthesizing answer...' });
+      response = await analyze(finalQuery, directContext, codeIntent, streamOpts);
       steps.push({ agent: 'code', action: `${codeIntent}_via_tool` });
     }
   }
@@ -174,14 +210,7 @@ export async function handleQuery(query, options = {}) {
             } catch { /* proceed with RAG context */ }
           }
         } else {
-          if (onProgress) onProgress({ step: 'tool_search', message: 'Gathering code for review...' });
-          try {
-            const toolResult = await handleWithTools(finalQuery, codebasePath, { stream: false });
-            steps.push({ agent: 'tool', action: 'context_gather' });
-            reviewContext = toolResult || '';
-          } catch {
-            reviewContext = '';
-          }
+          reviewContext = getDirectContext();
         }
 
         if (onProgress) onProgress({ step: 'generating', message: 'MedPsy diagnostic review...' });
@@ -229,10 +258,9 @@ export async function handleQuery(query, options = {}) {
           steps.push({ agent: 'doc', action: 'generate' });
         } else {
           if (onProgress) onProgress({ step: 'tool_read', message: 'Reading files...' });
-          const toolResult = await handleWithTools(`Read the relevant files for: ${finalQuery}`, codebasePath, { stream: false });
-          steps.push({ agent: 'tool', action: 'read_for_docs' });
+          const directContext = getDirectContext();
           if (onProgress) onProgress({ step: 'generating', message: 'Generating docs...' });
-          response = await generateDocs(finalQuery, toolResult || 'No files found.', streamOpts);
+          response = await generateDocs(finalQuery, directContext, streamOpts);
           steps.push({ agent: 'doc', action: 'generate_from_tool' });
         }
         break;

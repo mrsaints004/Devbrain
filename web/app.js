@@ -24,6 +24,8 @@ let queryCount = 0;
 let attachedImage = null;
 let isProcessing = false;
 let conversationHistory = [];
+let activeAbortController = null;
+let activeAudio = null;
 
 const codeHealth = { critical: 0, warning: 0, info: 0, clean: 0, issues: [] };
 
@@ -110,6 +112,16 @@ function saveHistory() {
 async function speakText(btn) {
   const text = btn.getAttribute('data-text');
   if (!text) return;
+
+  // If audio is playing, stop it
+  if (activeAudio && !activeAudio.paused) {
+    activeAudio.pause();
+    activeAudio.currentTime = 0;
+    activeAudio = null;
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+    return;
+  }
+
   btn.disabled = true;
   btn.style.opacity = '0.5';
   try {
@@ -122,8 +134,14 @@ async function speakText(btn) {
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
+      activeAudio = audio;
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
       audio.play();
-      audio.onended = () => URL.revokeObjectURL(url);
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        activeAudio = null;
+        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>`;
+      };
     } else {
       const data = await res.json();
       if (data.error) addMessage('system', `TTS: ${data.error}`);
@@ -218,9 +236,15 @@ async function sendStreamingQuery() {
   isProcessing = true;
   queryInput.value = '';
   queryInput.style.height = 'auto';
-  sendBtn.disabled = true;
   queryInput.disabled = true;
   queryInput.placeholder = 'Waiting for response...';
+
+  // Turn send button into stop button
+  activeAbortController = new AbortController();
+  sendBtn.disabled = false;
+  sendBtn.classList.add('stop-mode');
+  sendBtn.title = 'Stop (Esc)';
+  sendBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>`;
 
   addMessage('user', query);
 
@@ -253,6 +277,7 @@ async function sendStreamingQuery() {
         imageData: attachedImage?.data,
         imageMimeType: attachedImage?.mimeType,
       }),
+      signal: activeAbortController.signal,
     });
 
     if (!res.ok) {
@@ -354,11 +379,24 @@ async function sendStreamingQuery() {
 
   } catch (err) {
     clearInterval(elapsedTimer);
-    contentEl.innerHTML = `<span class="error">Connection error: ${escapeHtml(err.message)}</span>`;
+    if (err.name === 'AbortError') {
+      contentEl.innerHTML = renderMarkdown(fullText) || '';
+      if (fullText) {
+        contentEl.innerHTML += `<span class="stopped-tag">[stopped]</span>`;
+      } else {
+        contentEl.innerHTML = `<em class="stopped-tag">Stopped by user</em>`;
+      }
+    } else {
+      contentEl.innerHTML = `<span class="error">Connection error: ${escapeHtml(err.message)}</span>`;
+    }
     streamDiv.classList.remove('streaming');
   } finally {
     isProcessing = false;
+    activeAbortController = null;
     sendBtn.disabled = false;
+    sendBtn.classList.remove('stop-mode');
+    sendBtn.title = 'Send (Enter)';
+    sendBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`;
     queryInput.disabled = false;
     queryInput.placeholder = 'Ask about your codebase... (drop images here)';
     queryInput.focus();
@@ -507,7 +545,13 @@ if (exportBtn) {
   });
 }
 
-sendBtn.addEventListener('click', sendStreamingQuery);
+sendBtn.addEventListener('click', () => {
+  if (isProcessing && activeAbortController) {
+    activeAbortController.abort();
+  } else {
+    sendStreamingQuery();
+  }
+});
 
 queryInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
@@ -688,7 +732,21 @@ document.addEventListener('keydown', (e) => {
     queryInput.focus();
   }
   if (e.key === 'Escape') {
+    // Stop active query
+    if (isProcessing && activeAbortController) {
+      activeAbortController.abort();
+      return;
+    }
+    // Stop active audio
+    if (activeAudio && !activeAudio.paused) {
+      activeAudio.pause();
+      activeAudio.currentTime = 0;
+      activeAudio = null;
+      return;
+    }
+    // Close modals
     logsModal.classList.add('hidden');
+    benchmarkModal.classList.add('hidden');
   }
 });
 

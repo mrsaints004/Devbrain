@@ -9,6 +9,20 @@ export async function searchCode(query, workspace, limit = 8) {
   try {
     const results = await search(query, workspace, limit);
 
+    if (!Array.isArray(results)) {
+      logAgent('rag', 'search_unexpected_format', { type: typeof results, keys: results ? Object.keys(results) : [] });
+      // Handle case where QVAC returns { results: [...] } or similar wrapper
+      const items = results?.results || results?.documents || results?.matches || [];
+      if (Array.isArray(items) && items.length > 0) {
+        return items.map((r, i) => ({
+          rank: i + 1,
+          content: r.document || r.text || r.content || String(r),
+          score: r.score ?? r.similarity ?? null,
+        }));
+      }
+      return [];
+    }
+
     const chunks = results.map((r, i) => ({
       rank: i + 1,
       content: r.document || r.text || r.content || String(r),

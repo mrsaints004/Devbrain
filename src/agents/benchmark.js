@@ -11,8 +11,8 @@ const BENCHMARK_QUERIES = [
   { label: 'general', query: 'What is the overall architecture of this project?', intent: 'general_question' },
 ];
 
-const CLOUD_COST_PER_QUERY = 0.015;
-const CLOUD_AVG_LATENCY_MS = 2500;
+const CLOUD_COST_PER_QUERY = 0.003;
+const CLOUD_AVG_LATENCY_MS = 1200;
 
 export async function runBenchmark() {
   const modelId = getModelId('llm');
@@ -97,7 +97,7 @@ export async function runBenchmark() {
         estimatedCost: `$${cloudTotalCost}`,
         avgLatencyMs: CLOUD_AVG_LATENCY_MS,
         privacy: 'Code sent to remote servers',
-        note: 'Estimated based on GPT-4o-mini pricing (~$0.015/query avg)',
+        note: 'Based on GPT-4o-mini pricing (~150 input + 200 output tokens/query)',
       },
     },
   };

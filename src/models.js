@@ -38,7 +38,7 @@ const MODEL_CONFIGS = {
     },
   },
   medpsy: {
-    modelSrc: 'https://huggingface.co/qvac/MedPsy-4B-GGUF/resolve/main/MedPsy-4B-Q4_K_M.gguf',
+    modelSrc: 'https://huggingface.co/qvac/MedPsy-4B-GGUF/resolve/main/medpsy-4b-q4_k_m-imat.gguf',
     modelType: 'llm',
     label: 'MedPsy 4B Q4_K_M',
     modelConfig: { ctx_size: 8192 },
@@ -148,6 +148,9 @@ export async function loadAllModels() {
   } catch (err) {
     console.log(`  [core] MedPsy skipped: ${err.message}`);
   }
+
+  // Load optional models (vision, stt, tts) in background after core models
+  loadOptionalModels().catch(() => {});
 
   return { llmId, embId, medpsyId };
 }
