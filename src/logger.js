@@ -1,8 +1,9 @@
-import { writeFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { writeFileSync, appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const LOG_DIR = join(import.meta.dirname, '..', 'logs');
 const LOG_FILE = join(LOG_DIR, 'inference-log.json');
+const CSV_FILE = join(LOG_DIR, 'inference-log.csv');
 
 if (!existsSync(LOG_DIR)) {
   mkdirSync(LOG_DIR, { recursive: true });
@@ -17,12 +18,34 @@ if (existsSync(LOG_FILE)) {
   }
 }
 
+// Create CSV header if file doesn't exist
+if (!existsSync(CSV_FILE)) {
+  writeFileSync(CSV_FILE, 'timestamp,session_id,event,agent,model_id,prompt,tokens_in,tokens_out,ttft_ms,tps,duration_ms\n');
+}
+
 // Session tracking for demo artifacts
 const sessionId = `session-${Date.now()}`;
 let sessionStart = Date.now();
 
 function persist() {
   writeFileSync(LOG_FILE, JSON.stringify(entries, null, 2));
+}
+
+function persistCsv(entry) {
+  const row = [
+    entry.timestamp,
+    entry.sessionId,
+    entry.event,
+    entry.agent || '',
+    entry.modelId || '',
+    `"${(entry.prompt || '').replace(/"/g, '""').slice(0, 100)}"`,
+    entry.tokensIn || '',
+    entry.tokensOut || '',
+    entry.ttft || '',
+    entry.tps || '',
+    entry.durationMs || '',
+  ].join(',');
+  appendFileSync(CSV_FILE, row + '\n');
 }
 
 export function log(event, data = {}) {
@@ -34,6 +57,7 @@ export function log(event, data = {}) {
   };
   entries.push(entry);
   persist();
+  persistCsv(entry);
   const { timestamp, sessionId: _sid, ...rest } = entry;
   const preview = Object.keys(rest).length > 1 ? JSON.stringify(rest).slice(0, 120) : '';
   console.log(`[${timestamp}] ${event} ${preview}`);

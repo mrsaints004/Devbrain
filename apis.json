@@ -1,28 +1,35 @@
 {
   "name": "DevBrain",
   "version": "2.0.0",
-  "description": "Offline Code Intelligence Platform with Multi-Agent RAG, P2P Delegation, Multimodal Analysis, and Fine-Tuning",
+  "description": "Proactive Code Intelligence Platform with Multi-Agent RAG (re-ranked), P2P Delegation, Multimodal Analysis, Fine-Tuning, and Real-Time Code Smell Detection",
   "remote_apis": [],
   "local_only": true,
-  "note": "DevBrain is 100% offline. Zero remote API calls. All inference (LLM, embeddings, vision, TTS, STT) runs locally via QVAC SDK on consumer hardware. P2P communication uses Holepunch DHT (peer-to-peer, no cloud relay).",
+  "note": "DevBrain is 100% offline. Zero remote API calls. All inference (LLM, embeddings, vision, TTS, STT) runs locally via QVAC SDK on consumer hardware. P2P communication uses Holepunch DHT (peer-to-peer, no cloud relay). The only network activity is optional P2P between consenting local devices.",
   "qvac_sdk_usage": {
-    "inference": "qvac.completion() — multi-agent LLM inference with tool calling",
+    "inference": "qvac.completion() — multi-agent LLM inference with tool calling + re-ranking",
     "embeddings": "qvac.embed() — code-aware vector embeddings",
-    "rag": "qvac.ragIngest() + qvac.ragSearch() — vector store for codebase chunks",
-    "multimodal": "qvac.completion() with image content — screenshot/diagram analysis",
-    "tts": "qvac.tts() — text-to-speech for voice output",
-    "stt": "qvac.transcribe() — speech-to-text for voice input",
-    "p2p": "qvac.startQVACProvider() + qvac.connectToQVACProvider() — delegated inference",
-    "fine_tuning": "qvac.fineTune() — LoRA adapter training via QVAC Fabric",
+    "rag_ingest": "qvac.ragIngest() — vector store for codebase chunks with overlap",
+    "rag_search": "qvac.ragSearch() — semantic code retrieval (12 candidates, LLM re-ranked to 5)",
+    "multimodal": "qvac.completion() with image content — screenshot/diagram analysis via Qwen3-VL",
+    "tts": "qvac.textToSpeech() — text-to-speech for voice output (Supertonic)",
+    "stt": "qvac.transcribe() — speech-to-text for voice input (Whisper)",
+    "p2p_provider": "qvac.startQVACProvider() — serve inference to remote peers via Holepunch DHT",
+    "p2p_client": "qvac.connectToQVACProvider() — delegate queries to a more powerful device",
+    "fine_tuning": "qvac.finetune() — LoRA adapter training on codebase via QVAC Fabric",
     "model_management": "qvac.loadModel() + qvac.unloadModel() — lifecycle management"
   },
   "models_used": [
-    "Psy 4B Instruct Q4_K_M (primary LLM)",
-    "Psy Vision Q4_K_M (multimodal)",
-    "Psy TTS (text-to-speech)",
-    "Psy STT (speech-to-text)",
-    "GTE-Large FP16 (embeddings)",
-    "Llama 3.2 1B Instruct Q4_0 (fallback)"
+    "Qwen3 4B Instruct Q4_K_M (primary LLM — routing, analysis, re-ranking, smell detection)",
+    "GTE-Large FP16 (embeddings for RAG)",
+    "Qwen3-VL 2B Multimodal Q4_K (vision/image analysis)",
+    "Whisper Base Q0F16 (speech-to-text)",
+    "Supertonic (text-to-speech, component-based)"
+  ],
+  "third_party_npm_dependencies": [
+    "express (HTTP server)",
+    "zod (schema validation for tool parameters)",
+    "marked (markdown rendering in frontend)",
+    "chokidar (file system watching)"
   ],
   "third_party_services": "None. Fully air-gapped capable."
 }

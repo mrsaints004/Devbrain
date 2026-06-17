@@ -30,7 +30,7 @@ export async function ingest(documents, workspace = DEFAULT_WORKSPACE) {
   return result;
 }
 
-export async function search(query, workspace = DEFAULT_WORKSPACE, limit = 10) {
+export async function search(query, workspace = DEFAULT_WORKSPACE, limit = 12) {
   const modelId = getModelId('embeddings');
   if (!modelId) throw new Error('Embedding model not loaded');
 
@@ -40,7 +40,7 @@ export async function search(query, workspace = DEFAULT_WORKSPACE, limit = 10) {
     modelId,
     query,
     workspace,
-    limit,
+    topK: limit,
   });
 
   logRag('search_results', { count: results.length });

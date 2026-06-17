@@ -1,6 +1,3 @@
-// DevBrain v2.0 — Frontend Application
-// Streaming responses, multimodal input, performance dashboard
-
 const messagesEl = document.getElementById('messages');
 const queryInput = document.getElementById('query-input');
 const sendBtn = document.getElementById('send-btn');
@@ -19,9 +16,78 @@ const clearBtn = document.getElementById('clear-btn');
 const exportBtn = document.getElementById('export-btn');
 
 let queryCount = 0;
-let attachedImage = null; // { data: base64, mimeType: string }
-let isProcessing = false; // Lock to prevent concurrent queries
-let conversationHistory = []; // Persist conversations
+let attachedImage = null;
+let isProcessing = false;
+let conversationHistory = [];
+
+// === CODE HEALTH TRACKING ===
+const codeHealth = { critical: 0, warning: 0, info: 0, clean: 0, issues: [] };
+
+function updateHealthDisplay() {
+  const total = codeHealth.critical + codeHealth.warning + codeHealth.info + codeHealth.clean;
+  const score = total === 0 ? 100 : Math.max(0, Math.round(
+    100 - (codeHealth.critical * 25 + codeHealth.warning * 10 + codeHealth.info * 2)
+  ));
+
+  const scoreEl = document.getElementById('health-score');
+  const barEl = document.getElementById('health-bar');
+  scoreEl.textContent = total === 0 ? '--' : score;
+  scoreEl.className = 'health-score ' + (score >= 80 ? 'good' : score >= 50 ? 'warn' : 'bad');
+  barEl.style.width = (total === 0 ? 100 : score) + '%';
+  barEl.className = 'health-bar ' + (score >= 80 ? 'good' : score >= 50 ? 'warn' : 'bad');
+
+  document.getElementById('critical-count').textContent = codeHealth.critical;
+  document.getElementById('warning-count').textContent = codeHealth.warning;
+  document.getElementById('info-count').textContent = codeHealth.info;
+  document.getElementById('clean-count').textContent = codeHealth.clean;
+}
+
+// === CONFIGURE MARKED ===
+if (typeof marked !== 'undefined') {
+  marked.setOptions({
+    gfm: true,
+    breaks: true,
+    highlight: null,
+  });
+}
+
+// === MARKDOWN RENDERING (using marked.js) ===
+function renderMarkdown(text) {
+  if (!text) return '';
+  try {
+    // Use marked library for proper markdown rendering
+    if (typeof marked !== 'undefined') {
+      let html = marked.parse(text);
+      // Add copy buttons to code blocks
+      html = html.replace(/<pre><code(?:\s+class="language-(\w+)")?>([\s\S]*?)<\/code><\/pre>/g, (_, lang, code) => {
+        const id = 'code-' + Math.random().toString(36).slice(2, 8);
+        return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-lang">${lang || 'code'}</span><button class="copy-btn" onclick="copyCode('${id}')">Copy</button></div><pre class="code-block" id="${id}"><code>${code}</code></pre></div>`;
+      });
+      return html;
+    }
+  } catch { /* fallback below */ }
+  // Fallback: basic escaping
+  return escapeHtml(text).replace(/\n/g, '<br>');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function copyCode(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent).then(() => {
+    const btn = el.parentElement.querySelector('.copy-btn');
+    if (btn) {
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+    }
+  });
+}
+window.copyCode = copyCode;
 
 // === LOAD CONVERSATION FROM STORAGE ===
 function loadHistory() {
@@ -38,133 +104,41 @@ function loadHistory() {
 
 function saveHistory() {
   try {
-    // Keep last 50 messages to avoid storage bloat
     const toSave = conversationHistory.slice(-50);
     localStorage.setItem('devbrain-history', JSON.stringify(toSave));
   } catch { /* ignore */ }
 }
 
-// === MARKDOWN RENDERING ===
-function renderMarkdown(text) {
-  if (!text) return '';
-  let html = escapeHtml(text);
-
-  // Code blocks with copy button
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    const id = 'code-' + Math.random().toString(36).slice(2, 8);
-    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-lang">${lang || 'code'}</span><button class="copy-btn" onclick="copyCode('${id}')">Copy</button></div><pre class="code-block" id="${id}"><code>${code.trim()}</code></pre></div>`;
-  });
-
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
-
-  // Headers
-  html = html.replace(/^#### (.+)$/gm, '<h5>$1</h5>');
-  html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
-  html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
-  html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
-
-  // Bold and italic
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-
-  // Horizontal rule
-  html = html.replace(/^---$/gm, '<hr>');
-
-  // Tables
-  html = renderTables(html);
-
-  // Numbered lists
-  html = html.replace(/^(\d+)\.\s+(.+)$/gm, '<li class="ol-item" value="$1">$2</li>');
-  html = html.replace(/((<li class="ol-item"[^>]*>.*<\/li>\s*)+)/g, '<ol>$1</ol>');
-
-  // Unordered lists
-  html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
-  html = html.replace(/((<li>.*<\/li>\s*)+)/g, (match) => {
-    if (match.includes('class="ol-item"')) return match;
-    return `<ul>${match}</ul>`;
-  });
-
-  // Line breaks (but not inside pre/table)
-  html = html.replace(/\n/g, '<br>');
-
-  return html;
-}
-
-function renderTables(html) {
-  const lines = html.split('\n');
-  let result = [];
-  let inTable = false;
-  let tableRows = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (line.startsWith('|') && line.endsWith('|')) {
-      // Check if separator row
-      if (/^\|[\s\-:|]+\|$/.test(line)) {
-        // Skip separator row
-        continue;
-      }
-      const cells = line.split('|').slice(1, -1).map(c => c.trim());
-      if (!inTable) {
-        inTable = true;
-        tableRows = [];
-      }
-      tableRows.push(cells);
+// TTS: Read aloud using on-device TTS
+async function speakText(btn) {
+  const text = btn.getAttribute('data-text');
+  if (!text) return;
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (res.headers.get('Content-Type')?.includes('audio')) {
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.play();
+      audio.onended = () => URL.revokeObjectURL(url);
     } else {
-      if (inTable) {
-        result.push(buildTable(tableRows));
-        inTable = false;
-        tableRows = [];
-      }
-      result.push(lines[i]);
+      const data = await res.json();
+      if (data.error) addMessage('system', `TTS: ${data.error}`);
     }
+  } catch (err) {
+    addMessage('system', `TTS unavailable: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.style.opacity = '1';
   }
-  if (inTable) {
-    result.push(buildTable(tableRows));
-  }
-  return result.join('\n');
 }
-
-function buildTable(rows) {
-  if (rows.length === 0) return '';
-  let html = '<table class="md-table"><thead><tr>';
-  // First row is header
-  for (const cell of rows[0]) {
-    html += `<th>${cell}</th>`;
-  }
-  html += '</tr></thead><tbody>';
-  for (let i = 1; i < rows.length; i++) {
-    html += '<tr>';
-    for (const cell of rows[i]) {
-      html += `<td>${cell}</td>`;
-    }
-    html += '</tr>';
-  }
-  html += '</tbody></table>';
-  return html;
-}
-
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-function copyCode(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const text = el.textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const btn = el.parentElement.querySelector('.copy-btn');
-    if (btn) {
-      btn.textContent = 'Copied!';
-      setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
-    }
-  });
-}
-// Make copyCode available globally
-window.copyCode = copyCode;
+window.speakText = speakText;
 
 function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -177,14 +151,15 @@ function addMessageToDOM(type, content, meta = null, save = true) {
 
   let html = '';
 
-  // Agent pipeline visualization
+  // Agent pipeline visualization (animated)
   if (meta?.steps?.length) {
     html += `<div class="pipeline">`;
     for (let i = 0; i < meta.steps.length; i++) {
       const step = meta.steps[i];
       const label = step.agent + (step.action ? `: ${step.action}` : step.intent ? `: ${step.intent}` : '');
-      html += `<span class="pipeline-step">${escapeHtml(label)}</span>`;
-      if (i < meta.steps.length - 1) html += `<span class="pipeline-arrow">→</span>`;
+      const agentClass = `agent-${step.agent}`;
+      html += `<span class="pipeline-step ${agentClass}" style="animation-delay: ${i * 0.1}s">${escapeHtml(label)}</span>`;
+      if (i < meta.steps.length - 1) html += `<span class="pipeline-arrow">&#8594;</span>`;
     }
     html += `</div>`;
   }
@@ -192,6 +167,10 @@ function addMessageToDOM(type, content, meta = null, save = true) {
   // Content
   if (type === 'assistant') {
     html += `<div class="content markdown">${renderMarkdown(content)}</div>`;
+    const safeText = escapeHtml(content.slice(0, 500)).replace(/"/g, '&quot;');
+    html += `<button class="btn-tts" onclick="speakText(this)" data-text="${safeText}" title="Read aloud (TTS)">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+    </button>`;
   } else {
     html += `<div class="content">${escapeHtml(content)}</div>`;
   }
@@ -201,8 +180,9 @@ function addMessageToDOM(type, content, meta = null, save = true) {
     html += `<div class="meta">`;
     if (meta.intent) html += `<span class="tag intent">${meta.intent}</span>`;
     if (meta.durationMs) html += `<span class="tag duration">${(meta.durationMs / 1000).toFixed(1)}s</span>`;
+    if (meta.steps?.length > 2) html += `<span class="tag agents">${meta.steps.length} agents</span>`;
     if (meta.security?.warnings?.length) {
-      html += `<span class="tag security">⚠ Security: ${meta.security.warnings.length} warning(s)</span>`;
+      html += `<span class="tag security">&#9888; Security: ${meta.security.warnings.length} warning(s)</span>`;
     }
     html += `</div>`;
   }
@@ -211,7 +191,6 @@ function addMessageToDOM(type, content, meta = null, save = true) {
   messagesEl.appendChild(div);
   scrollToBottom();
 
-  // Save to history
   if (save) {
     conversationHistory.push({ type, content, meta });
     saveHistory();
@@ -253,7 +232,6 @@ async function sendStreamingQuery() {
 
   addMessage('user', query);
 
-  // Show image if attached
   if (attachedImage) {
     const imgMsg = document.createElement('div');
     imgMsg.className = 'message user';
@@ -268,7 +246,6 @@ async function sendStreamingQuery() {
   const elapsedEl = streamDiv.querySelector('#stream-elapsed');
   let fullText = '';
 
-  // Elapsed timer
   const startTime = Date.now();
   const elapsedTimer = setInterval(() => {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -296,6 +273,7 @@ async function sendStreamingQuery() {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let pipelineSteps = [];
 
     while (true) {
       const { done, value } = await reader.read();
@@ -314,49 +292,50 @@ async function sendStreamingQuery() {
             const progressEl = streamDiv.querySelector('#stream-progress');
             const progressText = progressEl.querySelector('.progress-text');
             progressText.textContent = event.message || event.step;
-            // Build pipeline as steps arrive
+
+            // Build animated pipeline
             if (event.step === 'router_done' && event.intent) {
-              pipelineEl.innerHTML = `<span class="pipeline-step">router: ${escapeHtml(event.intent)}</span>`;
+              pipelineSteps.push({ agent: 'router', label: event.intent });
+              renderPipeline(pipelineEl, pipelineSteps, true);
             } else if (event.step === 'rag_done') {
-              pipelineEl.innerHTML += `<span class="pipeline-arrow">→</span><span class="pipeline-step">rag: ${event.resultsCount} results</span>`;
+              pipelineSteps.push({ agent: 'rag', label: `${event.resultsCount} results` });
+              renderPipeline(pipelineEl, pipelineSteps, true);
+            } else if (event.step === 'rerank') {
+              pipelineSteps.push({ agent: 'reranker', label: 're-ranking' });
+              renderPipeline(pipelineEl, pipelineSteps, true);
+            } else if (event.step === 'tool_search' || event.step === 'tool_verify' || event.step === 'tool_read') {
+              pipelineSteps.push({ agent: 'tool', label: event.message });
+              renderPipeline(pipelineEl, pipelineSteps, true);
             } else if (event.step === 'generating') {
-              pipelineEl.innerHTML += `<span class="pipeline-arrow">→</span><span class="pipeline-step generating">generating...</span>`;
+              pipelineSteps.push({ agent: 'llm', label: 'generating' });
+              renderPipeline(pipelineEl, pipelineSteps, true);
             }
             scrollToBottom();
           } else if (event.type === 'token') {
-            // Hide progress indicator once tokens start flowing
             const progressEl = streamDiv.querySelector('#stream-progress');
             if (progressEl) progressEl.style.display = 'none';
             fullText += event.token;
-            contentEl.innerHTML = renderMarkdown(fullText) + '<span class="cursor">▊</span>';
+            contentEl.innerHTML = renderMarkdown(fullText) + '<span class="cursor">&#9610;</span>';
             scrollToBottom();
           } else if (event.type === 'done') {
             clearInterval(elapsedTimer);
-            // Finalize
             contentEl.innerHTML = renderMarkdown(fullText);
             streamDiv.classList.remove('streaming');
 
-            // Show pipeline
             if (event.steps?.length) {
-              let pipeHtml = '';
-              for (let i = 0; i < event.steps.length; i++) {
-                const s = event.steps[i];
-                const label = s.agent + (s.action ? `: ${s.action}` : s.intent ? `: ${s.intent}` : '');
-                pipeHtml += `<span class="pipeline-step">${escapeHtml(label)}</span>`;
-                if (i < event.steps.length - 1) pipeHtml += `<span class="pipeline-arrow">→</span>`;
-              }
-              pipelineEl.innerHTML = pipeHtml;
+              renderPipeline(pipelineEl, event.steps.map(s => ({
+                agent: s.agent,
+                label: s.action || s.intent || ''
+              })), false);
             }
 
-            // Show metadata
             let metaHtml = '';
             if (event.intent) metaHtml += `<span class="tag intent">${event.intent}</span>`;
             if (event.durationMs) metaHtml += `<span class="tag duration">${(event.durationMs / 1000).toFixed(1)}s</span>`;
+            if (event.steps?.length > 2) metaHtml += `<span class="tag agents">${event.steps.length} agents</span>`;
             metaEl.innerHTML = metaHtml;
 
             queryCount++;
-
-            // Save to history
             conversationHistory.push({
               type: 'assistant',
               content: fullText,
@@ -374,7 +353,6 @@ async function sendStreamingQuery() {
       }
     }
 
-    // If stream ended without 'done' event
     if (streamDiv.classList.contains('streaming')) {
       clearInterval(elapsedTimer);
       contentEl.innerHTML = renderMarkdown(fullText) || '<em>No response</em>';
@@ -393,6 +371,20 @@ async function sendStreamingQuery() {
     queryInput.focus();
     clearImage();
   }
+}
+
+// Render animated pipeline
+function renderPipeline(el, steps, animating) {
+  let html = '';
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i];
+    const isLast = i === steps.length - 1;
+    const agentClass = `agent-${s.agent}`;
+    const animClass = (animating && isLast) ? ' active' : '';
+    html += `<span class="pipeline-step ${agentClass}${animClass}" style="animation-delay: ${i * 0.08}s">${escapeHtml(s.agent)}${s.label ? ': ' + escapeHtml(s.label) : ''}</span>`;
+    if (!isLast) html += `<span class="pipeline-arrow">&#8594;</span>`;
+  }
+  el.innerHTML = html;
 }
 
 // === IMAGE HANDLING ===
@@ -452,12 +444,35 @@ micBtn.addEventListener('click', async () => {
     mediaRecorder.onstop = async () => {
       stream.getTracks().forEach((t) => t.stop());
       const blob = new Blob(audioChunks, { type: 'audio/webm' });
-      queryInput.value = '[Voice input captured — STT processing on device]';
-      queryInput.focus();
+
+      addMessage('system', 'Transcribing voice input on-device (Whisper)...');
+      try {
+        const arrayBuffer = await blob.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        const res = await fetch('/api/stt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audio: base64 }),
+        });
+        const data = await res.json();
+        if (data.text && data.text.trim()) {
+          queryInput.value = data.text.trim();
+          queryInput.style.height = 'auto';
+          queryInput.style.height = Math.min(queryInput.scrollHeight, 150) + 'px';
+          addMessage('system', `Transcribed: "${data.text.trim()}" \u2014 press Enter to send.`);
+        } else if (data.error) {
+          addMessage('system', `STT error: ${data.error}`);
+        } else {
+          addMessage('system', 'Could not transcribe audio. Try speaking more clearly.');
+        }
+      } catch (err) {
+        addMessage('system', `STT unavailable: ${err.message}. Type your question instead.`);
+      }
     };
 
     mediaRecorder.start();
     micBtn.classList.add('recording');
+    addMessage('system', 'Recording... click mic again to stop.');
   } catch {
     addMessage('system', 'Microphone access denied. Please allow microphone access.');
   }
@@ -466,11 +481,10 @@ micBtn.addEventListener('click', async () => {
 // === CLEAR CHAT ===
 if (clearBtn) {
   clearBtn.addEventListener('click', () => {
-    // Keep only the welcome message
     messagesEl.innerHTML = '';
     const welcome = document.createElement('div');
     welcome.className = 'message system';
-    welcome.innerHTML = `<div class="content"><strong>Welcome to DevBrain v2.0</strong><br>Chat cleared. Ask questions about your indexed codebase.</div>`;
+    welcome.innerHTML = `<div class="content"><strong>DevBrain v2.0</strong><br>Chat cleared. Ask questions about your indexed codebase.</div>`;
     messagesEl.appendChild(welcome);
     conversationHistory = [];
     saveHistory();
@@ -492,7 +506,7 @@ if (exportBtn) {
       } else if (msg.type === 'assistant') {
         md += `## DevBrain`;
         if (msg.meta?.intent) md += ` (${msg.meta.intent})`;
-        if (msg.meta?.durationMs) md += ` — ${(msg.meta.durationMs / 1000).toFixed(1)}s`;
+        if (msg.meta?.durationMs) md += ` \u2014 ${(msg.meta.durationMs / 1000).toFixed(1)}s`;
         md += `\n\n${msg.content}\n\n---\n\n`;
       }
     }
@@ -624,6 +638,12 @@ async function updateStatus() {
       document.getElementById('total-queries').textContent = data.session.totalInferences || 0;
       document.getElementById('uptime').textContent = formatUptime(data.session.uptime || 0);
     }
+
+    // Code health from status
+    if (data.codeHealth) {
+      Object.assign(codeHealth, data.codeHealth);
+      updateHealthDisplay();
+    }
   } catch {
     // server not ready
   }
@@ -634,6 +654,41 @@ const evtSource = new EventSource('/api/events');
 evtSource.onmessage = (e) => {
   try {
     const change = JSON.parse(e.data);
+
+    if (change.type === 'smell') {
+      // Track code health
+      const issueText = (change.issues || '').toUpperCase();
+      if (issueText.includes('CRITICAL')) codeHealth.critical++;
+      else if (issueText.includes('WARNING')) codeHealth.warning++;
+      else codeHealth.info++;
+      codeHealth.issues.push({ file: change.filePath, time: Date.now(), issues: change.issues });
+      if (codeHealth.issues.length > 50) codeHealth.issues.shift();
+      updateHealthDisplay();
+
+      // Code smell detected — show as proactive alert
+      const alertDiv = document.createElement('div');
+      alertDiv.className = 'message smell-alert';
+      alertDiv.innerHTML = `
+        <div class="smell-header">
+          <span class="smell-icon">&#9888;</span>
+          <strong>Code Issue Detected</strong>
+          <span class="smell-file">${escapeHtml(change.filePath)}</span>
+        </div>
+        <div class="content markdown">${renderMarkdown(change.issues)}</div>
+      `;
+      messagesEl.appendChild(alertDiv);
+      scrollToBottom();
+      conversationHistory.push({ type: 'smell', content: `[${change.filePath}] ${change.issues}`, meta: null });
+      saveHistory();
+      return;
+    }
+
+    if (change.type === 'smell_clean') {
+      codeHealth.clean++;
+      updateHealthDisplay();
+      return;
+    }
+
     const el = document.getElementById('file-changes');
     const text = document.getElementById('change-text');
     text.textContent = `${change.type}: ${change.relPath}`;
@@ -646,12 +701,10 @@ evtSource.onmessage = (e) => {
 
 // === KEYBOARD SHORTCUTS ===
 document.addEventListener('keydown', (e) => {
-  // Ctrl/Cmd + K to focus input
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault();
     queryInput.focus();
   }
-  // Escape to close modals
   if (e.key === 'Escape') {
     logsModal.classList.add('hidden');
   }

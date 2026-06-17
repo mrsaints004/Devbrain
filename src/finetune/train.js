@@ -1,16 +1,4 @@
 #!/usr/bin/env node
-/**
- * DevBrain Fine-tuning Pipeline — uses QVAC Fabric to create
- * LoRA adapters trained on the user's codebase patterns.
- *
- * This generates training data from the indexed codebase and
- * fine-tunes the model to understand project-specific conventions,
- * naming patterns, and architectural decisions.
- *
- * Usage:
- *   node src/finetune/train.js --path ./your-project --epochs 3
- */
-
 import * as qvac from '@qvac/sdk';
 import { readFileSync, readdirSync, statSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
@@ -52,12 +40,6 @@ function walkDir(dir, files = []) {
   return files;
 }
 
-/**
- * Generate training pairs from codebase:
- * - Function name → implementation
- * - Comment → code that follows
- * - Module description → exports
- */
 function generateTrainingData(files) {
   const pairs = [];
 
@@ -109,42 +91,39 @@ function generateTrainingData(files) {
 }
 
 async function main() {
-  console.log(`
-╔══════════════════════════════════════╗
-║     DevBrain Fine-Tuning Pipeline   ║
-║     QVAC Fabric LoRA Adapter        ║
-╚══════════════════════════════════════╝
-`);
+  console.log(`\n  DevBrain Fine-Tuning — QVAC Fabric LoRA\n`);
+  console.log(`  Codebase: ${codebasePath}`);
+  console.log(`  Epochs: ${epochs}`);
+  console.log(`  Output: ${outputDir}\n`);
 
-  console.log(`Codebase: ${codebasePath}`);
-  console.log(`Epochs: ${epochs}`);
-  console.log(`Output: ${outputDir}\n`);
-
-  // Step 1: Scan codebase
-  console.log('[1/4] Scanning codebase...');
+  // Scan codebase
   const files = walkDir(codebasePath);
-  console.log(`      Found ${files.length} code files`);
+  console.log(`  Found ${files.length} code files`);
   logFinetune('scan', { files: files.length });
 
-  // Step 2: Generate training data
-  console.log('[2/4] Generating training data...');
+  // Generate training data
   const trainingData = generateTrainingData(files);
-  console.log(`      Generated ${trainingData.length} training pairs`);
+  console.log(`  Generated ${trainingData.length} training pairs`);
   logFinetune('data_generated', { pairs: trainingData.length });
 
-  // Save training data
   if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
   const dataPath = join(outputDir, 'training-data.json');
   writeFileSync(dataPath, JSON.stringify(trainingData, null, 2));
-  console.log(`      Saved to ${dataPath}`);
+  console.log(`  Saved training data to ${dataPath}`);
 
-  // Step 3: Fine-tune with QVAC Fabric
-  console.log('[3/4] Starting LoRA fine-tuning via QVAC Fabric...');
+  // Fine-tune
+  console.log('  Starting LoRA fine-tuning...');
   logFinetune('training_start', { epochs, pairs: trainingData.length });
 
+  // SDK exposes finetune() or fineTune() depending on version
+  const finetuneFn = qvac.finetune || qvac.fineTune;
+  if (!finetuneFn) {
+    throw new Error('qvac.finetune() not available in this SDK version');
+  }
+
   try {
-    const result = await qvac.fineTune({
-      baseModel: qvac.PSY_4B_INST_Q4_K_M || qvac.QWEN3_4B_INST_Q4_K_M,
+    const result = await finetuneFn({
+      baseModel: qvac.QWEN3_4B_INST_Q4_K_M,
       trainingData: trainingData.map((p) => ({
         messages: [
           { role: 'system', content: 'You are a code intelligence assistant specialized in this codebase.' },
@@ -168,18 +147,15 @@ async function main() {
       },
     });
 
-    console.log(`\n[4/4] Fine-tuning complete!`);
-    console.log(`      Adapter saved to: ${result.outputPath || outputDir}`);
-    console.log(`      Final loss: ${result.finalLoss?.toFixed(4) || 'N/A'}`);
+    console.log(`\n  Done. Adapter: ${result.outputPath || outputDir}`);
+    console.log(`  Final loss: ${result.finalLoss?.toFixed(4) || 'N/A'}`);
     logFinetune('complete', { outputPath: result.outputPath, finalLoss: result.finalLoss });
 
   } catch (err) {
-    console.error(`\n      Fine-tuning failed: ${err.message}`);
-    console.error('      This may mean QVAC Fabric is not available in your SDK version.');
-    console.error('      Training data has been saved — you can use it manually.\n');
+    console.error(`\n  Fine-tuning failed: ${err.message}`);
+    console.error('  Training data saved — can be used with qvac.finetune() manually.\n');
     logFinetune('error', { error: err.message });
 
-    // Save a training data summary even if fine-tuning fails
     const summaryPath = join(outputDir, 'README.md');
     writeFileSync(summaryPath, `# DevBrain Fine-Tuning Data
 
@@ -190,8 +166,8 @@ Generated ${trainingData.length} training pairs from ${files.length} files.
 \`\`\`javascript
 import * as qvac from '@qvac/sdk';
 
-const result = await qvac.fineTune({
-  baseModel: qvac.PSY_4B_INST_Q4_K_M,
+const result = await qvac.finetune({
+  baseModel: qvac.QWEN3_4B_INST_Q4_K_M,
   trainingData: require('./training-data.json'),
   config: { epochs: ${epochs}, loraRank: 16 }
 });
@@ -203,7 +179,7 @@ Total pairs: ${trainingData.length}
 Source files: ${files.length}
 Generated: ${new Date().toISOString()}
 `);
-    console.log(`      Summary saved to ${summaryPath}`);
+    console.log(`  Summary saved to ${summaryPath}`);
   }
 }
 

@@ -5,8 +5,8 @@ import { indexCodebase, getIndexStatus } from './rag/indexer.js';
 import { getStatus as getModelStatus, loadAllModels, hasModel } from './models.js';
 import { getEntries, getSessionStats } from './logger.js';
 import { getProviderStatus } from './p2p/provider.js';
-import { getWatcherStatus } from './watcher/monitor.js';
-import { synthesizeSpeech } from './agents/vision.js';
+import { getWatcherStatus, onCodeSmell } from './watcher/monitor.js';
+import { synthesizeSpeech, transcribeAudio } from './agents/vision.js';
 
 export function createServer({ codebasePath, workspace }) {
   const app = express();
@@ -140,6 +140,9 @@ export function createServer({ codebasePath, workspace }) {
 
   // === STATUS ENDPOINTS ===
 
+  // Code health tracking
+  const codeHealth = { critical: 0, warning: 0, info: 0, clean: 0 };
+
   app.get('/api/status', (req, res) => {
     res.json({
       models: getModelStatus(),
@@ -147,6 +150,7 @@ export function createServer({ codebasePath, workspace }) {
       p2p: getProviderStatus(),
       watcher: getWatcherStatus(),
       session: getSessionStats(),
+      codeHealth,
     });
   });
 
@@ -161,12 +165,27 @@ export function createServer({ codebasePath, workspace }) {
     }
   });
 
+  // === STT ENDPOINT ===
+
+  app.post('/api/stt', async (req, res) => {
+    const { audio } = req.body; // base64-encoded audio
+    if (!audio) return res.status(400).json({ error: 'Missing "audio" field' });
+    if (!hasModel('stt')) return res.status(503).json({ error: 'STT model not loaded' });
+
+    try {
+      const audioBuffer = Buffer.from(audio, 'base64');
+      const text = await transcribeAudio(audioBuffer);
+      res.json({ text });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // === TTS ENDPOINT ===
 
   app.post('/api/tts', async (req, res) => {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: 'Missing "text" field' });
-    if (!hasModel('tts')) return res.status(503).json({ error: 'TTS model not loaded' });
 
     try {
       const audio = await synthesizeSpeech(text);
@@ -215,6 +234,29 @@ export function createServer({ codebasePath, workspace }) {
       client.write(`data: ${data}\n\n`);
     }
   };
+
+  // Broadcast code smell alerts to connected clients + track health
+  onCodeSmell((smell) => {
+    if (smell.clean) {
+      // File was analyzed and found clean
+      codeHealth.clean++;
+      const data = JSON.stringify({ type: 'smell_clean', filePath: smell.filePath });
+      for (const client of fileChangeClients) {
+        client.write(`data: ${data}\n\n`);
+      }
+    } else {
+      // Issues found
+      const issueText = (smell.issues || '').toUpperCase();
+      if (issueText.includes('CRITICAL')) codeHealth.critical++;
+      else if (issueText.includes('WARNING')) codeHealth.warning++;
+      else codeHealth.info++;
+      const data = JSON.stringify({ type: 'smell', ...smell });
+      for (const client of fileChangeClients) {
+        client.write(`data: ${data}\n\n`);
+      }
+      console.log(`  [SmellDetect] Issues in ${smell.filePath}`);
+    }
+  });
 
   // === SPA FALLBACK ===
 

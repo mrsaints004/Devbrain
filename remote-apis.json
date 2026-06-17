@@ -1,0 +1,7 @@
+{
+  "project": "DevBrain",
+  "version": "2.0.0",
+  "description": "This project runs 100% offline. No remote API calls are made during inference, embedding, RAG, TTS, STT, or any AI workload.",
+  "remote_apis": [],
+  "notes": "All AI inference is performed locally via QVAC SDK. No data leaves the device. The only network activity is optional P2P model sharing via Holepunch DHT between consenting local devices."
+}

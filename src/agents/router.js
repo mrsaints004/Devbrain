@@ -7,6 +7,7 @@ const INTENTS = [
   'search_code',
   'explain_code',
   'find_bug',
+  'security_audit',
   'generate_docs',
   'refactor',
   'analyze_image',
@@ -18,6 +19,7 @@ Given a user query about a codebase, classify it into exactly one of these inten
 - search_code: user wants to find specific code, files, functions, or patterns
 - explain_code: user wants to understand how code works
 - find_bug: user wants to identify bugs, issues, or potential problems
+- security_audit: user specifically wants a security review, vulnerability assessment, or safety analysis
 - generate_docs: user wants documentation generated for code
 - refactor: user wants code improvement suggestions or refactoring
 - analyze_image: user mentions an image, screenshot, diagram, or visual content
@@ -31,6 +33,7 @@ export async function classifyIntent(query, hasImage = false) {
 
   // Keyword-based fast paths for reliable classification (order matters!)
   const q = query.toLowerCase();
+  if (/\b(security\s+(?:audit|review|scan|check|assess)|vulnerability\s+(?:scan|assess|check)|penetration|pen\s?test|safety\s+(?:analysis|review|check)|threat\s+model)/i.test(q)) return 'security_audit';
   if (/\b(bug|bugs|err?ors?|issue|issues|problem|problems|wrong|broken|fix|debug|vulnerability|vulnerabilities|lint)\b/.test(q)) return 'find_bug';
   if (/\b(refactor|improve|clean\s?up|optimize|simplify|performance)\b/.test(q)) return 'refactor';
   if (/\b(explain|how\s+does|what\s+does|walk\s+me\s+through|understand|what\s+is)\b/.test(q)) return 'explain_code';

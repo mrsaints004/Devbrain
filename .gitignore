@@ -4,10 +4,6 @@ node_modules/
 # QVAC SDK local data
 .qvac/
 
-# Logs
-*.log
-logs/
-
 # OS files
 .DS_Store
 Thumbs.db
@@ -38,3 +34,7 @@ training-data/
 tmp/
 temp/
 *.tmp
+
+# Log files
+logs/
+*.log

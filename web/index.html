@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DevBrain — Offline Code Intelligence</title>
+  <title>DevBrain — Proactive Code Intelligence</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
   <div class="layout">
@@ -12,8 +13,41 @@
     <aside class="sidebar">
       <div class="logo">
         <h1>DevBrain</h1>
-        <span class="subtitle">Offline Code Intelligence</span>
+        <span class="subtitle">Proactive Code Intelligence</span>
         <span class="badge">QVAC SDK</span>
+      </div>
+
+      <!-- Code Health Score -->
+      <div class="health-panel">
+        <div class="health-header">
+          <h3>Code Health</h3>
+          <span id="health-score" class="health-score good">--</span>
+        </div>
+        <div class="health-bar-container">
+          <div id="health-bar" class="health-bar" style="width: 100%"></div>
+        </div>
+        <div class="health-breakdown">
+          <div class="health-stat">
+            <span class="health-dot critical"></span>
+            <span class="health-label">Critical</span>
+            <span id="critical-count" class="health-value">0</span>
+          </div>
+          <div class="health-stat">
+            <span class="health-dot warning"></span>
+            <span class="health-label">Warning</span>
+            <span id="warning-count" class="health-value">0</span>
+          </div>
+          <div class="health-stat">
+            <span class="health-dot info"></span>
+            <span class="health-label">Info</span>
+            <span id="info-count" class="health-value">0</span>
+          </div>
+          <div class="health-stat">
+            <span class="health-dot clean"></span>
+            <span class="health-label">Clean scans</span>
+            <span id="clean-count" class="health-value">0</span>
+          </div>
+        </div>
       </div>
 
       <!-- Performance Dashboard -->
@@ -95,22 +129,26 @@
     <!-- Main Chat Area -->
     <main class="chat-area">
       <div id="messages" class="messages">
-        <div class="message system">
+        <div class="message system welcome">
+          <div class="welcome-logo">DB</div>
           <div class="content">
-            <strong>Welcome to DevBrain v2.0</strong><br>
-            Ask questions about your indexed codebase. Supports:<br>
-            • Code search, explanation, bug finding, refactoring<br>
-            • Documentation generation<br>
-            • Image/screenshot analysis (drag & drop)<br>
-            • Voice input (click mic button)<br>
-            • Real-time streaming responses
+            <strong>DevBrain v2.0</strong> — Proactive Code Intelligence<br>
+            <div class="welcome-features">
+              <span class="feature-chip">Proactive Bug Detection</span>
+              <span class="feature-chip">Multi-Agent RAG</span>
+              <span class="feature-chip">Multimodal</span>
+              <span class="feature-chip">P2P Delegation</span>
+              <span class="feature-chip">Voice I/O</span>
+              <span class="feature-chip">Fine-Tuning</span>
+            </div>
+            <span class="welcome-hint">DevBrain watches your files and detects issues on save. Ask questions or just code.</span>
           </div>
         </div>
       </div>
 
       <!-- File change notifications -->
       <div id="file-changes" class="file-changes hidden">
-        <span class="change-icon">●</span>
+        <span class="change-icon">&#9679;</span>
         <span id="change-text">Files changed</span>
       </div>
 

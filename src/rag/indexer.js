@@ -66,9 +66,9 @@ export async function indexCodebase(codebasePath, workspace) {
 
   log('index_chunks_created', { count: allChunks.length });
 
-  // Format chunks as documents for RAG ingestion: prefix with file path and line info
+  // Format chunks as documents for RAG ingestion: prefix with file path, line info, and label
   const documents = allChunks.map(
-    (c) => `[${c.filePath}:${c.startLine}-${c.endLine}]\n${c.text}`
+    (c) => `[${c.filePath}:${c.startLine}-${c.endLine}]${c.label ? ` (${c.label})` : ''}\n${c.text}`
   );
 
   if (documents.length === 0) {

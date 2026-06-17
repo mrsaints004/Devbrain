@@ -1,15 +1,10 @@
-/**
- * Real-time file monitor — watches the codebase for changes and
- * proactively re-indexes modified files and surfaces insights.
- * Uses chokidar for cross-platform file watching.
- */
-
 import { watch } from 'chokidar';
 import { readFileSync } from 'node:fs';
 import { relative } from 'node:path';
 import { chunkCode, isCodeFile } from '../rag/chunker.js';
 import { ingest } from '../rag/store.js';
 import { log, logAgent } from '../logger.js';
+import { detectSmells } from '../agents/smell.js';
 
 let watcher = null;
 let changeQueue = [];
@@ -19,9 +14,14 @@ const DEBOUNCE_MS = 5000;
 
 // Event emitter for UI notifications
 let onChangeCallback = null;
+let onSmellCallback = null;
 
 export function onFileChange(callback) {
   onChangeCallback = callback;
+}
+
+export function onCodeSmell(callback) {
+  onSmellCallback = callback;
 }
 
 export function startWatcher(codebasePath, workspace) {
@@ -123,6 +123,27 @@ async function processQueue(codebasePath, workspace) {
   }
 
   isReindexing = false;
+
+  // Run code smell detection on modified files (non-blocking)
+  if (onSmellCallback) {
+    for (const { filePath, relPath } of modifiedFiles) {
+      try {
+        const source = readFileSync(filePath, 'utf-8');
+        detectSmells(relPath, source).then((issues) => {
+          if (onSmellCallback) {
+            if (issues) {
+              onSmellCallback({ filePath: relPath, issues, timestamp: Date.now() });
+            } else {
+              // File is clean — broadcast for health tracking
+              onSmellCallback({ filePath: relPath, clean: true, timestamp: Date.now() });
+            }
+          }
+        }).catch(() => {});
+      } catch {
+        // file may have been deleted
+      }
+    }
+  }
 }
 
 export function stopWatcher() {

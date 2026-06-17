@@ -3,40 +3,64 @@ import { logModelLoad, logModelUnload, log } from './logger.js';
 
 const loaded = new Map();
 
-// Model configurations — prioritizing QVAC Psy models + community models
 const MODEL_CONFIGS = {
-  // Primary LLM — QVAC's own Psy model for code reasoning
   llm: {
-    modelSrc: qvac.PSY_4B_INST_Q4_K_M || qvac.QWEN3_4B_INST_Q4_K_M,
-    label: 'Psy 4B Instruct Q4_K_M (primary LLM)',
+    modelSrc: qvac.QWEN3_4B_INST_Q4_K_M,
+    modelType: 'llm',
+    label: 'Qwen3 4B Q4_K_M',
     modelConfig: { ctx_size: 8192 },
   },
-  // Fallback LLM
-  'llm-fallback': {
-    modelSrc: qvac.LLAMA_3_2_1B_INST_Q4_0,
-    label: 'Llama 3.2 1B Instruct (fallback)',
-    modelConfig: { ctx_size: 4096 },
-  },
-  // Embeddings for RAG
   embeddings: {
     modelSrc: qvac.GTE_LARGE_FP16,
-    label: 'GTE-Large FP16 (embeddings)',
+    modelType: 'embeddings',
+    label: 'GTE-Large FP16',
+    modelConfig: {
+      gpuLayers: 99,
+      device: 'gpu',
+    },
   },
-  // Vision model for multimodal (screenshot/diagram analysis)
   vision: {
-    modelSrc: qvac.PSY_VISION_Q4_K_M || qvac.LLAVA_1_6_MISTRAL_7B_Q4_K_M || qvac.QWEN3_4B_INST_Q4_K_M,
-    label: 'Psy Vision Q4_K_M (multimodal)',
-    modelConfig: { ctx_size: 4096 },
+    modelSrc: qvac.QWEN3VL_2B_MULTIMODAL_Q4_K,
+    modelType: 'llm',  // Vision models load as LLM with projectionModelSrc
+    label: 'Qwen3-VL 2B',
+    modelConfig: {
+      ctx_size: 4096,
+      projectionModelSrc: qvac.MMPROJ_QWEN3VL_2B_MULTIMODAL_Q4_K,
+    },
   },
-  // TTS model for voice output
-  tts: {
-    modelSrc: qvac.PSY_TTS || qvac.OUTETTS_0_2_500M,
-    label: 'Psy TTS (text-to-speech)',
-  },
-  // STT/Whisper model for voice input
   stt: {
-    modelSrc: qvac.PSY_STT || qvac.WHISPER_BASE,
-    label: 'Psy STT (speech-to-text)',
+    modelSrc: qvac.WHISPER_BASE_Q0F16 || qvac.WHISPER_SMALL_Q0F16,
+    modelType: 'whisper',
+    label: 'Whisper Base',
+    modelConfig: {
+      language: 'en',
+      strategy: 'greedy',
+    },
+  },
+  medpsy: {
+    modelSrc: 'https://huggingface.co/qvac/MedPsy-4B-GGUF/resolve/main/MedPsy-4B-Q4_K_M.gguf',
+    modelType: 'llm',
+    label: 'MedPsy 4B Q4_K_M',
+    modelConfig: { ctx_size: 8192 },
+  },
+  tts: {
+    modelSrc: qvac.TTS_SUPERTONIC2_OFFICIAL_TEXT_ENCODER_SUPERTONE_FP32?.src,
+    modelType: 'tts',
+    label: 'Supertonic2 TTS',
+    modelConfig: {
+      ttsEngine: 'supertonic',
+      language: 'en',
+      ttsSpeed: 1.05,
+      ttsNumInferenceSteps: 5,
+      ttsSupertonicMultilingual: true,
+      ttsTextEncoderSrc: qvac.TTS_SUPERTONIC2_OFFICIAL_TEXT_ENCODER_SUPERTONE_FP32?.src,
+      ttsDurationPredictorSrc: qvac.TTS_SUPERTONIC2_OFFICIAL_DURATION_PREDICTOR_SUPERTONE_FP32?.src,
+      ttsVectorEstimatorSrc: qvac.TTS_SUPERTONIC2_OFFICIAL_VECTOR_ESTIMATOR_SUPERTONE_FP32?.src,
+      ttsVocoderSrc: qvac.TTS_SUPERTONIC2_OFFICIAL_VOCODER_SUPERTONE_FP32?.src,
+      ttsUnicodeIndexerSrc: qvac.TTS_SUPERTONIC2_OFFICIAL_UNICODE_INDEXER_SUPERTONE_FP32?.src,
+      ttsTtsConfigSrc: qvac.TTS_SUPERTONIC2_OFFICIAL_TTS_CONFIG_SUPERTONE?.src,
+      ttsVoiceStyleSrc: qvac.TTS_SUPERTONIC2_OFFICIAL_VOICE_STYLE_SUPERTONE?.src,
+    },
   },
 };
 
@@ -46,9 +70,8 @@ export async function loadModel(type, retries = 3) {
   const cfg = MODEL_CONFIGS[type];
   if (!cfg) throw new Error(`Unknown model type: ${type}`);
 
-  // Skip if model source is unavailable in current SDK version
   if (!cfg.modelSrc) {
-    log('model_unavailable', { type, label: cfg.label, message: 'Model source not available in SDK' });
+    log('model_unavailable', { type, label: cfg.label, message: 'Not available in SDK' });
     return null;
   }
 
@@ -57,15 +80,25 @@ export async function loadModel(type, retries = 3) {
     const start = Date.now();
 
     try {
-      const modelId = await qvac.loadModel({
+      const loadOpts = {
         modelSrc: cfg.modelSrc,
+        modelType: cfg.modelType,
         ...(cfg.modelConfig && { modelConfig: cfg.modelConfig }),
-        onProgress: (progress) => {
-          if (progress % 10 === 0) {
-            console.log(`      [${type}] Download progress: ${progress}%`);
-          }
-        },
-      });
+        onProgress: (() => {
+          let lastLogged = -1;
+          return (progress) => {
+            const pct = typeof progress === 'number' ? progress : progress?.percentage;
+            if (pct == null) return;
+            const rounded = Math.floor(pct / 10) * 10; // log at 0, 10, 20, ... 100
+            if (rounded > lastLogged) {
+              lastLogged = rounded;
+              console.log(`      [${type}] ${rounded}%`);
+            }
+          };
+        })(),
+      };
+
+      const modelId = await qvac.loadModel(loadOpts);
 
       const durationMs = Date.now() - start;
       loaded.set(type, modelId);
@@ -89,7 +122,7 @@ export async function loadModel(type, retries = 3) {
 export async function unloadModel(type) {
   const modelId = loaded.get(type);
   if (!modelId) return;
-  await qvac.unloadModel(modelId);
+  await qvac.unloadModel({ modelId });
   loaded.delete(type);
   logModelUnload(modelId);
 }
@@ -103,48 +136,36 @@ export function hasModel(type) {
 }
 
 export async function loadAllModels() {
-  log('models_init', { message: 'Loading models sequentially to reduce memory pressure' });
+  log('models_init', { message: 'Sequential load to reduce memory pressure' });
 
-  // Load embedding model first (required for RAG)
-  console.log('      Loading embedding model...');
   const embId = await loadModel('embeddings');
+  const llmId = await loadModel('llm');
 
-  // Load primary LLM (try Psy first, fallback to Qwen/Llama)
-  console.log('      Loading primary LLM (Psy model)...');
-  let llmId;
+  // Load MedPsy model for deep review agent (Psy Models track)
+  let medpsyId = null;
   try {
-    llmId = await loadModel('llm');
-  } catch {
-    console.log('      Primary LLM failed, trying fallback...');
-    llmId = await loadModel('llm-fallback');
-    loaded.set('llm', llmId);
-  }
-
-  // Load vision model (non-blocking, optional)
-  console.log('      Loading vision model...');
-  try {
-    await loadModel('vision');
+    medpsyId = await loadModel('medpsy');
+    console.log('  [core] MedPsy 4B loaded for deep review.');
   } catch (err) {
-    console.log(`      Vision model skipped: ${err.message}`);
+    console.log(`  [core] MedPsy skipped: ${err.message}`);
   }
 
-  // Load TTS model (non-blocking, optional)
-  console.log('      Loading TTS model...');
-  try {
-    await loadModel('tts');
-  } catch (err) {
-    console.log(`      TTS model skipped: ${err.message}`);
-  }
+  return { llmId, embId, medpsyId };
+}
 
-  // Load STT model (non-blocking, optional)
-  console.log('      Loading STT model...');
-  try {
-    await loadModel('stt');
-  } catch (err) {
-    console.log(`      STT model skipped: ${err.message}`);
+/**
+ * Load optional models (vision, STT, TTS) in the background.
+ * These are non-blocking — the server is already running.
+ */
+async function loadOptionalModels() {
+  for (const type of ['vision', 'stt', 'tts']) {
+    try {
+      await loadModel(type, 1);
+      console.log(`  [background] ${type} loaded.`);
+    } catch (err) {
+      console.log(`  [background] ${type} skipped: ${err.message}`);
+    }
   }
-
-  return { llmId, embId };
 }
 
 export function getStatus() {

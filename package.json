@@ -7,9 +7,14 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node src/index.js --path ./",
+    "watch": "node src/index.js --path ./ --watch",
     "client": "node src/p2p/client.js",
     "finetune": "node src/finetune/train.js",
-    "monitor": "node src/index.js --path ./ --watch"
+    "test": "node test/router.test.js && node test/chunker.test.js && node test/security.test.js && node test/rag.test.js",
+    "test:router": "node test/router.test.js",
+    "test:chunker": "node test/chunker.test.js",
+    "test:security": "node test/security.test.js",
+    "test:rag": "node test/rag.test.js"
   },
   "keywords": ["qvac", "code-intelligence", "rag", "multi-agent", "offline", "p2p", "multimodal", "edge-ai", "fine-tuning"],
   "license": "Apache-2.0",
